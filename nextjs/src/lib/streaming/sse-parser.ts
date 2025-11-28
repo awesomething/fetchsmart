@@ -170,32 +170,101 @@ export function extractDataFromSSE(data: string): ParsedSSEData {
 function handleSSEParsingError(data: string, error: unknown): ParsedSSEData {
   const truncatedData =
     data.length > 200 ? data.substring(0, 200) + "..." : data;
+  
+  // Try to extract any error message from malformed JSON FIRST
+  let errorMessage = "Failed to parse server response. Please try again.";
+  
+  try {
+    // Handle double-escaped JSON strings (common in error responses)
+    let cleanedData: string | Record<string, unknown> = data.trim();
+    
+    // Remove outer quotes if present (e.g., " "{\"error\": ...}" ")
+    if (cleanedData.startsWith('"') && cleanedData.endsWith('"')) {
+      try {
+        const parsed = JSON.parse(cleanedData);
+        cleanedData = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
+      } catch {
+        // If that fails, try removing just the outer quotes
+        cleanedData = cleanedData.slice(1, -1);
+      }
+    }
+    
+    // Try to parse as JSON
+    if (typeof cleanedData === 'string') {
+      try {
+        const parsed = JSON.parse(cleanedData) as Record<string, unknown>;
+        if (parsed.error) {
+          errorMessage = typeof parsed.error === 'string' 
+            ? parsed.error 
+            : JSON.stringify(parsed.error);
+        } else if (parsed.message) {
+          errorMessage = typeof parsed.message === 'string'
+            ? parsed.message
+            : JSON.stringify(parsed.message);
+        }
+      } catch {
+        // If direct parse fails, try regex extraction
+        // Look for error messages in various formats
+        const errorPatterns = [
+          /"error"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)"/,  // "error": "message"
+          /"error"\s*:\s*'([^']*)'/,                   // "error": 'message'
+          /error[^"]*"([^"\\]*(\\.[^"\\]*)*)"/i,      // error: "message"
+          /No root_agent found for[^.]*\./,           // Specific ADK error format
+        ];
+        
+        for (const pattern of errorPatterns) {
+          const match = cleanedData.match(pattern);
+          if (match && match[1]) {
+            // Unescape the matched string
+            errorMessage = match[1]
+              .replace(/\\"/g, '"')
+              .replace(/\\'/g, "'")
+              .replace(/\\\\/g, '\\')
+              .replace(/\\n/g, '\n')
+              .replace(/\\t/g, '\t');
+            break;
+          }
+        }
+        
+        // Special handling for ADK "No root_agent found" errors
+        if (cleanedData.includes("No root_agent found")) {
+          const adkErrorMatch = cleanedData.match(/No root_agent found for[^.]*\./);
+          if (adkErrorMatch) {
+            errorMessage = adkErrorMatch[0]
+              .replace(/\\"/g, '"')
+              .replace(/\\'/g, "'")
+              .replace(/\\\\/g, '\\');
+          } else {
+            errorMessage = "Agent configuration error: No root_agent found. Check AGENT_NAME in app/.env matches your directory structure.";
+          }
+        }
+      }
+    } else if (typeof cleanedData === 'object' && cleanedData !== null) {
+      // Already parsed
+      const obj = cleanedData as Record<string, unknown>;
+      if ('error' in obj) {
+        errorMessage = typeof obj.error === 'string'
+          ? obj.error
+          : JSON.stringify(obj.error);
+      } else if ('message' in obj) {
+        errorMessage = typeof obj.message === 'string'
+          ? obj.message
+          : JSON.stringify(obj.message);
+      }
+    }
+  } catch (extractError) {
+    // If all extraction fails, log but use default message
+    console.warn("Could not extract error message from malformed JSON:", extractError);
+  }
+  
+  // Only log the full error details in development
+  if (process.env.NODE_ENV === 'development') {
   console.error(
     'Error parsing SSE data. Raw data (truncated): "',
     truncatedData,
     '". Error details:',
     error
   );
-
-  // Try to extract any error message from malformed JSON
-  let errorMessage = "Failed to parse server response. Please try again.";
-  try {
-    // Try to find JSON-like structures in the data
-    const jsonMatch = data.match(/\{[^}]*"error"[^}]*\}/);
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0]);
-      if (parsed.error || parsed.message) {
-        errorMessage = parsed.error || parsed.message || errorMessage;
-      }
-    } else if (data.includes("error") || data.includes("Error")) {
-      // Try to extract error text from the data
-      const errorMatch = data.match(/error[^"]*"([^"]+)"/i);
-      if (errorMatch && errorMatch[1]) {
-        errorMessage = errorMatch[1];
-      }
-    }
-  } catch {
-    // If extraction fails, use default message
   }
 
   return {

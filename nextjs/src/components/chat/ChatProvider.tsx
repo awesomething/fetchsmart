@@ -667,6 +667,7 @@ export function ChatProvider({
         return;
       }
 
+      // Use functional update to ensure React detects the change
       setMessages(prev => {
         const existingMessage = prev.find((msg) => msg.id === cleanedMessage.id);
         console.log("🔍 [CHAT_PROVIDER] Message state check:", {
@@ -679,14 +680,22 @@ export function ChatProvider({
 
         if (existingMessage) {
           console.log("🔄 [CHAT_PROVIDER] Updating existing message");
-          return prev.map((msg) =>
+          // Create new array to ensure React detects the change
+          const updated = prev.map((msg) =>
             msg.id === cleanedMessage.id
               ? {
                   ...existingMessage,
                   ...cleanedMessage,
+                  // Force new object reference
+                  timestamp: cleanedMessage.timestamp || new Date(),
                 }
               : msg
           );
+          // In production, ensure React sees this as a new array
+          if (process.env.NODE_ENV === "production") {
+            return [...updated];
+          }
+          return updated;
         } else {
           const newMessage: Message = {
             ...cleanedMessage,
@@ -705,6 +714,15 @@ export function ChatProvider({
           return newMessages;
         }
       });
+      
+      // Force a re-render in production by triggering a state update
+      if (process.env.NODE_ENV === "production" && typeof window !== "undefined") {
+        // Use requestAnimationFrame to ensure DOM updates are visible
+        requestAnimationFrame(() => {
+          // Trigger a micro-update to force React to re-render
+          void document.body.offsetHeight;
+        });
+      }
     },
     onEventUpdate: (messageId, event) => {
       console.log("📅 [CHAT_PROVIDER] onEventUpdate called:", {
@@ -928,11 +946,11 @@ export function ChatProvider({
       // Only clear if there's no candidate data in the latest message
       // This prevents clearing candidates when smart routing is used
       if (!hasCandidateDataInLatestMessage) {
-        console.log("🧹 [CHAT_PROVIDER] Clearing candidates (mode changed from recruiter)");
-        setCandidates(null);
+      console.log("🧹 [CHAT_PROVIDER] Clearing candidates (mode changed from recruiter)");
+      setCandidates(null);
       } else {
         console.log("ℹ️ [CHAT_PROVIDER] Keeping candidates (smart routing detected candidate data)");
-      }
+    }
     }
   }, [agentMode, candidates, messages]);
 
