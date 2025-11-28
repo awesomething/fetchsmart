@@ -1,0 +1,38 @@
+# Core MCP Server
+fastmcp>=0.1.0
+python-dotenv>=1.0.0
+supabase>=2.0.0
+requests>=2.31.0
+python-dotenv>=1.0.0
+fastmcp>=0.9.0
+# Database
+pymongo>=4.6.0
+
+# Email Processing
+# Built-in: smtplib, imaplib, email, ssl
+
+# Document Processing & AI
+google-generativeai>=0.3.0
+paddleocr>=2.7.0
+paddlepaddle>=2.6.0
+numpy>=1.24.0
+
+# HTTP Client
+requests>=2.31.0
+
+# LaTeX/PDF Generation
+# External dependency: pdflatex (install TeX distribution separately)
+# Windows: MiKTeX (https://miktex.org/download)
+# macOS: MacTeX (brew install --cask mactex)
+# Linux: texlive-full (apt-get install texlive-full)
+
+# Note: Some packages have system-level dependencies
+# - PaddleOCR requires C++ build tools on Windows
+# - LaTeX requires TeX distribution (not a Python package)
+
+# Recruitment Backend
+google-adk>=1.10.0
+a2a-sdk>=0.2.5
+uvicorn>=0.30.0
+python-dotenv>=1.0.0
+nest-asyncio>=1.6.0

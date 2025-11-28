@@ -1,0 +1,16 @@
+# Recruitment Backend Dependencies
+# A2A Server with MCP Tools Integration
+
+# Google ADK and A2A Protocol
+google-adk>=1.10.0
+a2a-sdk>=0.2.5
+
+# Web Server
+uvicorn>=0.30.0
+
+# Environment and Async
+python-dotenv>=1.0.0
+nest-asyncio>=1.6.0
+
+# HTTP Client (for GitHub API)
+requests>=2.31.0

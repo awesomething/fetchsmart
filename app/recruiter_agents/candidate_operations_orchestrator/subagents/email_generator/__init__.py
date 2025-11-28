@@ -1,0 +1,4 @@
+"""
+Email generator sub-agent.
+"""
+

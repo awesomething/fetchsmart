@@ -1,0 +1,47 @@
+services:
+  recruitment-api:
+    build:
+      context: ./services/recruitment_api
+      dockerfile: Dockerfile
+    container_name: recruitment-api
+    ports:
+      - "8085:8085"
+    environment:
+      - PORT=8085
+      - HOST=0.0.0.0
+      - CORS_ORIGINS=http://localhost:3000,http://frontend:3000
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8085/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - app-network
+
+  frontend:
+    build:
+      context: ./nextjs
+      dockerfile: Dockerfile
+    container_name: nextjs-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_RECRUITING_API_URL=http://recruitment-api:8085
+      - NODE_ENV=development
+    depends_on:
+      recruitment-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - app-network
+
+networks:
+  app-network:
+    driver: bridge
+
