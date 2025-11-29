@@ -152,6 +152,40 @@ def deploy_agent_engine_app() -> agent_engines.AgentEngine:
     else:
         print("⚠️  GOOGLE_SERVICE_ACCOUNT_KEY_BASE64 not set - Google Drive tools will not work")
 
+    # Pass MCP server URLs for recruiter and staffing agents
+    print("\n" + "="*60)
+    print("🔗 MCP Server Configuration")
+    print("="*60)
+    
+    recruitment_mcp_url = os.environ.get("RECRUITMENT_MCP_SERVER_URL")
+    if recruitment_mcp_url:
+        env_vars["RECRUITMENT_MCP_SERVER_URL"] = recruitment_mcp_url
+        print(f"✅ Recruitment MCP server URL configured: {recruitment_mcp_url}")
+        print(f"   → This will be passed to deployed agent as RECRUITMENT_MCP_SERVER_URL")
+    else:
+        # Also check for MCP_SERVER_URL (used by some recruiter agents)
+        mcp_url = os.environ.get("MCP_SERVER_URL")
+        if mcp_url:
+            env_vars["MCP_SERVER_URL"] = mcp_url
+            print(f"✅ MCP server URL configured (fallback): {mcp_url}")
+            print(f"   → This will be passed to deployed agent as MCP_SERVER_URL")
+        else:
+            print("⚠️  RECRUITMENT_MCP_SERVER_URL not set")
+            print("   → Recruiter agents will try to use local backend (will fail in production)")
+            print("   → To fix: Set RECRUITMENT_MCP_SERVER_URL before deploying")
+    
+    staffing_mcp_url = os.environ.get("STAFFING_MCP_SERVER_URL")
+    if staffing_mcp_url:
+        env_vars["STAFFING_MCP_SERVER_URL"] = staffing_mcp_url
+        print(f"✅ Staffing MCP server URL configured: {staffing_mcp_url}")
+        print(f"   → This will be passed to deployed agent as STAFFING_MCP_SERVER_URL")
+    else:
+        print("⚠️  STAFFING_MCP_SERVER_URL not set")
+        print("   → Staffing agents will use localhost (will fail in production)")
+        print("   → To fix: Set STAFFING_MCP_SERVER_URL before deploying")
+    
+    print("="*60 + "\n")
+
     # Pass Weave/W&B configuration if enabled
     enable_weave = os.environ.get("ENABLE_WEAVE_TRACING", "false").lower() == "true"
     if enable_weave:

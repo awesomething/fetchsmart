@@ -17,19 +17,49 @@ from google.adk.tools.tool_context import ToolContext
 GEMINI_MODEL = "gemini-2.0-flash"
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-GITHUB_PROFILES_PATH = (
-    REPO_ROOT / "mcp_server" / "recruitment_backend" / "github_profiles_100.json"
-)
+
+# Try multiple paths for different deployment contexts
+# 1. Local development: mcp_server/recruitment_backend/github_profiles_100.json
+# 2. Vertex AI deployment: app/data/github_profiles_100.json (copied during deployment)
+# 3. Fallback: check if file exists in app directory
+# Use lazy evaluation to avoid issues during build/import
+def _get_github_profiles_path() -> Path:
+    """Get GitHub profiles JSON path, trying multiple locations."""
+    paths_to_try = [
+        REPO_ROOT / "mcp_server" / "recruitment_backend" / "github_profiles_100.json",
+        REPO_ROOT / "app" / "data" / "github_profiles_100.json",
+        REPO_ROOT / "github_profiles_100.json",
+    ]
+    for path in paths_to_try:
+        try:
+            if path.exists():
+                return path
+        except Exception:
+            # Ignore errors during path resolution (e.g., during build)
+            continue
+    # Return default path even if it doesn't exist (will be handled by caller)
+    return paths_to_try[0]
+
+# Don't call at module level - call lazily in _load_profile_map
+GITHUB_PROFILES_PATH_CACHE: Path | None = None
 
 
 @lru_cache(maxsize=1)
 def _load_profile_map() -> Dict[str, Dict[str, Any]]:
     """Load GitHub profiles once and return a username → profile map."""
-    if not GITHUB_PROFILES_PATH.exists():
+    global GITHUB_PROFILES_PATH_CACHE
+    
+    # Lazy path resolution to avoid issues during build/import
+    if GITHUB_PROFILES_PATH_CACHE is None:
+        GITHUB_PROFILES_PATH_CACHE = _get_github_profiles_path()
+    
+    github_profiles_path = GITHUB_PROFILES_PATH_CACHE
+    
+    if not github_profiles_path.exists():
         return {}
 
     try:
-        with GITHUB_PROFILES_PATH.open(encoding="utf-8") as handle:
+        with github_profiles_path.open(encoding="utf-8") as handle:
             data = json.load(handle)
     except Exception:
         return {}

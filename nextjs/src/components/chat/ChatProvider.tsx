@@ -8,6 +8,7 @@ import React, {
   useEffect,
   useState,
 } from "react";
+import { flushSync } from "react-dom";
 
 import { useSession } from "@/hooks/useSession";
 import { useMessages } from "@/hooks/useMessages";
@@ -667,43 +668,47 @@ export function ChatProvider({
         return;
       }
 
-      setMessages(prev => {
-        const existingMessage = prev.find((msg) => msg.id === cleanedMessage.id);
-        console.log("🔍 [CHAT_PROVIDER] Message state check:", {
-          messageId: cleanedMessage.id,
-          existingMessage: !!existingMessage,
-          totalMessages: prev.length,
-          lastMessageType:
-            prev.length > 0 ? prev[prev.length - 1].type : "none",
-        });
+      // 🔑 CRITICAL: Use flushSync to force immediate UI update for real-time streaming
+      // This prevents React from batching updates and ensures text appears as it streams
+      flushSync(() => {
+        setMessages(prev => {
+          const existingMessage = prev.find((msg) => msg.id === cleanedMessage.id);
+          console.log("🔍 [CHAT_PROVIDER] Message state check:", {
+            messageId: cleanedMessage.id,
+            existingMessage: !!existingMessage,
+            totalMessages: prev.length,
+            lastMessageType:
+              prev.length > 0 ? prev[prev.length - 1].type : "none",
+          });
 
-        if (existingMessage) {
-          console.log("🔄 [CHAT_PROVIDER] Updating existing message");
-          return prev.map((msg) =>
-            msg.id === cleanedMessage.id
-              ? {
-                  ...existingMessage,
-                  ...cleanedMessage,
-                }
-              : msg
-          );
-        } else {
-          const newMessage: Message = {
-            ...cleanedMessage,
-            timestamp: cleanedMessage.timestamp || new Date(),
-          };
-          console.log("✅ [CHAT_PROVIDER] Creating new message:", {
-            id: newMessage.id,
-            type: newMessage.type,
-            contentLength: newMessage.content.length,
-          });
-          const newMessages = [...prev, newMessage];
-          console.log("📊 [CHAT_PROVIDER] Updated messages array:", {
-            totalMessages: newMessages.length,
-            lastMessageType: newMessages[newMessages.length - 1].type,
-          });
-          return newMessages;
-        }
+          if (existingMessage) {
+            console.log("🔄 [CHAT_PROVIDER] Updating existing message");
+            return prev.map((msg) =>
+              msg.id === cleanedMessage.id
+                ? {
+                    ...existingMessage,
+                    ...cleanedMessage,
+                  }
+                : msg
+            );
+          } else {
+            const newMessage: Message = {
+              ...cleanedMessage,
+              timestamp: cleanedMessage.timestamp || new Date(),
+            };
+            console.log("✅ [CHAT_PROVIDER] Creating new message:", {
+              id: newMessage.id,
+              type: newMessage.type,
+              contentLength: newMessage.content.length,
+            });
+            const newMessages = [...prev, newMessage];
+            console.log("📊 [CHAT_PROVIDER] Updated messages array:", {
+              totalMessages: newMessages.length,
+              lastMessageType: newMessages[newMessages.length - 1].type,
+            });
+            return newMessages;
+          }
+        });
       });
     },
     onEventUpdate: (messageId, event) => {
@@ -1019,7 +1024,10 @@ export function ChatProvider({
         "[data-radix-scroll-area-viewport]"
       );
       if (scrollViewport) {
-        scrollViewport.scrollTop = scrollViewport.scrollHeight;
+        // Request animation frame ensures smooth scrolling during rapid updates
+        requestAnimationFrame(() => {
+          scrollViewport.scrollTop = scrollViewport.scrollHeight;
+        });
       }
     }
   }, [messages]);

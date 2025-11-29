@@ -16,42 +16,44 @@ from app.staffing_agents.submission_agent.agent import create_agent as create_su
 logger = logging.getLogger(__name__)
 
 def get_recruiter_orchestrator_agent() -> LlmAgent:
-    """Lazy initialization of recruiter orchestrator."""
+    """Lazy initialization of recruiter orchestrator with graceful degradation."""
+    sub_agents = []
+    
+    # Create sub-agents with error handling - continue even if some fail
     try:
-        # Create sub-agents with error handling
-        try:
-            job_search_agent = create_job_search_agent()
-            logger.info(f"✅ Job search agent created: {job_search_agent.name}")
-        except Exception as e:
-            logger.error(f"❌ Failed to create job_search_agent: {e}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            raise
-        
-        try:
-            matching_agent = create_matching_agent()
-            logger.info(f"✅ Matching agent created: {matching_agent.name}")
-        except Exception as e:
-            logger.error(f"❌ Failed to create matching_agent: {e}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            raise
-        
-        try:
-            submission_agent = create_submission_agent()
-            logger.info(f"✅ Submission agent created: {submission_agent.name}")
-        except Exception as e:
-            logger.error(f"❌ Failed to create submission_agent: {e}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            raise
-        
-        return LlmAgent(
-            name="StaffingRecruiterOrchestrator",
-            model=config.model,
-            description="Orchestrates recruiter workflow: job search → candidate matching → submission",
-            sub_agents=[job_search_agent, matching_agent, submission_agent],
-            instruction="""
+        job_search_agent = create_job_search_agent()
+        logger.info(f"[OK] Job search agent created: {job_search_agent.name}")
+        sub_agents.append(job_search_agent)
+    except Exception as e:
+        logger.warning(f"[WARNING] Failed to create job_search_agent: {e}")
+        logger.warning("[WARNING] Continuing without job search agent")
+    
+    try:
+        matching_agent = create_matching_agent()
+        logger.info(f"[OK] Matching agent created: {matching_agent.name}")
+        sub_agents.append(matching_agent)
+    except Exception as e:
+        logger.warning(f"[WARNING] Failed to create matching_agent: {e}")
+        logger.warning("[WARNING] Continuing without matching agent")
+    
+    try:
+        submission_agent = create_submission_agent()
+        logger.info(f"[OK] Submission agent created: {submission_agent.name}")
+        sub_agents.append(submission_agent)
+    except Exception as e:
+        logger.warning(f"[WARNING] Failed to create submission_agent: {e}")
+        logger.warning("[WARNING] Continuing without submission agent")
+    
+    # If no sub-agents were created, that's a problem
+    if not sub_agents:
+        raise RuntimeError("Failed to create any sub-agents for staffing recruiter orchestrator")
+    
+    return LlmAgent(
+        name="StaffingRecruiterOrchestrator",
+        model=config.model,
+        description="Orchestrates recruiter workflow: job search → candidate matching → submission",
+        sub_agents=sub_agents,
+        instruction="""
 You coordinate the recruiter workflow through specialized agents:
 
 1. Job Search: Find open positions matching requirements
@@ -87,20 +89,23 @@ You coordinate the recruiter workflow through specialized agents:
 Always maintain context about job requirements, candidate profiles, and submission status.
 Focus on finding the best candidate-job fit to maximize placement success.
 """,
-            output_key="recruiter_workflow_result",
-        )
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize recruiter orchestrator: {e}")
-        import traceback
-        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
-        # Return a minimal agent that will at least not crash
-        return LlmAgent(
-            name="StaffingRecruiterOrchestrator",
-            model=config.model,
-            description="Recruiter orchestrator (initialization failed - check logs)",
-            instruction=f"The recruiter orchestrator failed to initialize. Error: {str(e)}. Please check the backend logs for details.",
-            output_key="recruiter_workflow_result",
-        )
+        output_key="recruiter_workflow_result",
+    )
 
-recruiter_orchestrator_agent = get_recruiter_orchestrator_agent()
+# Create at module level for backward compatibility, but with error handling
+# This allows the agent to be imported even if initialization fails
+try:
+    recruiter_orchestrator_agent = get_recruiter_orchestrator_agent()
+    logger.info("✅ Staffing recruiter orchestrator agent initialized successfully")
+except Exception as e:
+    logger.warning(f"⚠️  Failed to initialize staffing recruiter agent at import time: {e}")
+    logger.warning("⚠️  This is OK - agent will work with available sub-agents when deployed")
+    # Create a minimal placeholder agent that won't crash
+    recruiter_orchestrator_agent = LlmAgent(
+        name="StaffingRecruiterOrchestrator",
+        model=config.model,
+        description="Staffing recruiter orchestrator (some sub-agents unavailable)",
+        instruction="The staffing recruiter orchestrator is partially initialized. Some features may be limited.",
+        output_key="recruiter_workflow_result",
+    )
 

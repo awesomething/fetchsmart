@@ -80,6 +80,10 @@ lint:
 	uv run mypy .
 
 # Deploy the agent remotely
+# Usage:
+#   make deploy-adk
+#   Or with MCP servers:
+#   RECRUITMENT_MCP_SERVER_URL=https://... STAFFING_MCP_SERVER_URL=https://.../mcp make deploy-adk
 deploy-adk:
 	# Export dependencies to requirements file using uv export.
 	uv export --no-hashes --no-header --no-dev --no-emit-project --no-annotate > .requirements.txt 2>/dev/null || \

@@ -72,16 +72,24 @@ class WeaveSpanExporter(SpanExporter):
         if self.api_key:
             os.environ["WANDB_API_KEY"] = self.api_key
 
-        # Initialize Weave
+        # Initialize wandb (required for Weave)
         try:
-            if self.entity:
-                weave.init(project_name=self.project, entity=self.entity)
-            else:
-                weave.init(project_name=self.project)
+            # Initialize wandb run for tracing (entity is set via wandb, not weave)
+            wandb.init(
+                project=self.project,
+                entity=self.entity,
+                name=f"{self.service_name}-traces",
+                job_type="tracing",
+                reinit=True,
+                mode="online" if self.api_key else "disabled",
+            )
+            
+            # Initialize Weave (only accepts project_name, entity is handled by wandb)
+            weave.init(project_name=self.project)
             
             if self.debug:
                 logger.info(
-                    f"✅ Weave initialized: project={self.project}, entity={self.entity or 'default'}"
+                    f"✅ Weave initialized: project={self.project}, entity={self.entity or 'default'}, wandb_run={wandb.run.id if wandb.run else 'None'}"
                 )
         except Exception as e:
             logger.error(f"❌ Failed to initialize Weave: {e}")
@@ -159,46 +167,67 @@ class WeaveSpanExporter(SpanExporter):
                     for event in span.events
                 ]
 
-            # Log to Weave - try multiple approaches
-            # Weave might use different APIs depending on version
+            # Log to Weave using weave.log_call() which is the proper API for logging traces
+            # Weave tracks function calls, so we create a synthetic call for each span
             try:
-                # Try weave.log() first (if available)
-                if hasattr(weave, "log"):
-                    weave.log(trace_data)
-                # Try wandb.log() as fallback
-                elif wandb and wandb.run:
-                    wandb.log({"trace": trace_data})
+                # Ensure wandb run is active (required for Weave)
+                if not wandb.run:
+                    wandb.init(
+                        project=self.project,
+                        entity=self.entity,
+                        name=f"{self.service_name}-traces",
+                        job_type="tracing",
+                        reinit=True,
+                        mode="online" if self.api_key else "disabled",
+                    )
+                
+                # Use weave.log_call() to log the span as a trace
+                # This is the proper way to send traces to Weave
+                import time
+                
+                # Create a call object that Weave can visualize
+                call_data = {
+                    "name": span.name,
+                    "inputs": trace_data.get("attributes", {}),
+                    "output": {
+                        "status": trace_data.get("status"),
+                        "duration_ms": trace_data.get("duration_ms"),
+                        "trace_id": trace_data.get("trace_id"),
+                        "span_id": trace_data.get("span_id"),
+                    },
+                    "metadata": {
+                        "service_name": self.service_name,
+                        "start_time_ms": trace_data.get("start_time_ms"),
+                        "end_time_ms": trace_data.get("end_time_ms"),
+                    }
+                }
+                
+                # Log the call to Weave using weave.log_call() - the proper API
+                if hasattr(weave, "log_call"):
+                    weave.log_call(
+                        op=span.name,
+                        inputs=trace_data.get("attributes", {}),
+                        output=call_data["output"],
+                        attributes=call_data["metadata"],
+                    )
                 else:
-                    # Initialize wandb run if needed
-                    if wandb:
-                        if not wandb.run:
-                            wandb.init(
-                                project=self.project,
-                                entity=self.entity,
-                                name=f"{self.service_name}-traces",
-                                job_type="tracing",
-                                reinit=True,
-                            )
-                        wandb.log({"trace": trace_data})
-                    else:
-                        logger.warning("Neither weave.log() nor wandb.log() available")
+                    # Fallback: log to wandb in structured format
+                    wandb.log({
+                        f"trace/{span.name}": call_data,
+                        "span_name": span.name,
+                        "trace_id": trace_data.get("trace_id"),
+                        "span_id": trace_data.get("span_id"),
+                    }, step=int(trace_data.get("start_time_ms", 0) / 1000) if trace_data.get("start_time_ms") else None)
 
                 if self.debug:
-                    logger.debug(f"  - Logged span to Weave: {span.name}")
-            except AttributeError:
-                # If weave.log doesn't exist, try alternative approach
-                logger.warning(f"weave.log() not available, trying alternative method for span: {span.name}")
-                # Try using wandb directly
-                if wandb:
-                    if not wandb.run:
-                        wandb.init(
-                            project=self.project,
-                            entity=self.entity,
-                            name=f"{self.service_name}-traces",
-                            job_type="tracing",
-                            reinit=True,
-                        )
-                    wandb.log({"trace": trace_data})
+                    logger.debug(f"  - Logged span to Weave: {span.name} (run_id: {wandb.run.id if wandb.run else 'None'})")
+            except Exception as e:
+                logger.error(f"❌ Failed to log span to Weave: {e}")
+                if self.debug:
+                    import traceback
+                    logger.error(traceback.format_exc())
+                # Don't raise - allow tracing to continue even if Weave export fails
+                pass
 
         except Exception as e:
             logger.error(f"❌ Failed to export span {span.name} to Weave: {e}")

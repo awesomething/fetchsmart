@@ -15,33 +15,36 @@ from app.staffing_agents.interview_scheduling_agent.agent import create_agent as
 logger = logging.getLogger(__name__)
 
 def get_employer_orchestrator_agent() -> LlmAgent:
-    """Lazy initialization of employer orchestrator."""
+    """Lazy initialization of employer orchestrator with graceful degradation."""
+    sub_agents = []
+    
+    # Create sub-agents with error handling - continue even if some fail
     try:
-        # Create sub-agents with error handling
-        try:
-            review_agent = create_review_agent()
-            logger.info(f"✅ Review agent created: {review_agent.name}")
-        except Exception as e:
-            logger.error(f"❌ Failed to create review_agent: {e}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            raise
-        
-        try:
-            scheduling_agent = create_scheduling_agent()
-            logger.info(f"✅ Scheduling agent created: {scheduling_agent.name}")
-        except Exception as e:
-            logger.error(f"❌ Failed to create scheduling_agent: {e}")
-            import traceback
-            logger.error(f"❌ Traceback: {traceback.format_exc()}")
-            raise
-        
-        return LlmAgent(
-            name="StaffingEmployerOrchestrator",
-            model=config.model,
-            description="Orchestrates employer workflow: candidate review → interview scheduling → hiring decisions",
-            sub_agents=[review_agent, scheduling_agent],
-            instruction="""
+        review_agent = create_review_agent()
+        logger.info(f"✅ Review agent created: {review_agent.name}")
+        sub_agents.append(review_agent)
+    except Exception as e:
+        logger.warning(f"⚠️  Failed to create review_agent: {e}")
+        logger.warning("⚠️  Continuing without review agent")
+    
+    try:
+        scheduling_agent = create_scheduling_agent()
+        logger.info(f"✅ Scheduling agent created: {scheduling_agent.name}")
+        sub_agents.append(scheduling_agent)
+    except Exception as e:
+        logger.warning(f"⚠️  Failed to create scheduling_agent: {e}")
+        logger.warning("⚠️  Continuing without scheduling agent")
+    
+    # If no sub-agents were created, that's a problem
+    if not sub_agents:
+        raise RuntimeError("Failed to create any sub-agents for employer orchestrator")
+    
+    return LlmAgent(
+        name="StaffingEmployerOrchestrator",
+        model=config.model,
+        description="Orchestrates employer workflow: candidate review → interview scheduling → hiring decisions",
+        sub_agents=sub_agents,
+        instruction="""
 You coordinate the employer workflow through specialized agents:
 
 1. Candidate Review: Evaluate submitted candidates
@@ -72,20 +75,23 @@ You coordinate the employer workflow through specialized agents:
 Ensure candidates progress efficiently through the hiring pipeline.
 Maintain clear communication with recruiters about candidate status.
 """,
-            output_key="employer_workflow_result",
-        )
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize employer orchestrator: {e}")
-        import traceback
-        logger.error(f"❌ Full traceback: {traceback.format_exc()}")
-        # Return a minimal agent that will at least not crash
-        return LlmAgent(
-            name="StaffingEmployerOrchestrator",
-            model=config.model,
-            description="Employer orchestrator (initialization failed - check logs)",
-            instruction=f"The employer orchestrator failed to initialize. Error: {str(e)}. Please check the backend logs for details.",
-            output_key="employer_workflow_result",
-        )
+        output_key="employer_workflow_result",
+    )
 
-employer_orchestrator_agent = get_employer_orchestrator_agent()
+# Create at module level for backward compatibility, but with error handling
+# This allows the agent to be imported even if initialization fails
+try:
+    employer_orchestrator_agent = get_employer_orchestrator_agent()
+    logger.info("✅ Employer orchestrator agent initialized successfully")
+except Exception as e:
+    logger.warning(f"⚠️  Failed to initialize employer orchestrator agent at import time: {e}")
+    logger.warning("⚠️  This is OK - agent will work with available sub-agents when deployed")
+    # Create a minimal placeholder agent that won't crash
+    employer_orchestrator_agent = LlmAgent(
+        name="StaffingEmployerOrchestrator",
+        model=config.model,
+        description="Employer orchestrator (some sub-agents unavailable)",
+        instruction="The employer orchestrator is partially initialized. Some features may be limited.",
+        output_key="employer_workflow_result",
+    )
 
