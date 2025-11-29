@@ -642,3 +642,46 @@ gcloud run deploy staffing-backend \
 - Frontend UI with job cards and action buttons
 - JSearch API fallback operational
 - All credentials configured and tested
+
+Investigating Weave tracing and creating a test script to validate it. 
+
+
+The Weave tracing implementation uses the wrong API. Weave uses `@weave.op()` decorators, not `weave.log()`. Fixing the implementation and updating the test script:
+
+
+Remove emojis from the test script to avoid Unicode issues:
+
+
+## Weave tracing fixes
+
+### Issues found
+1. Incorrect Weave initialization: `weave.init()` was called with an `entity` parameter, which it doesn't accept.
+2. Wrong API usage: The code tried to use `weave.log()` which doesn't exist.
+3. Missing wandb initialization: Weave requires an active wandb run.
+
+### Fixes applied
+1. Fixed Weave initialization:
+   - Removed `entity` parameter from `weave.init()` (entity is handled by wandb)
+   - Ensured wandb is initialized before Weave
+
+2. Updated span export:
+   - Switched to `weave.log_call()` with correct parameters (`op`, `inputs`, `output`, `attributes`)
+   - Added fallback to `wandb.log()` if `weave.log_call()` is unavailable
+
+3. Test script:
+   - Created `test_weave_simple.py` that validates the setup
+   - Test passes and successfully logs traces to Weave
+
+### Test results
+The test script confirms:
+- Weave exporter initializes successfully
+- OpenTelemetry spans are created
+- Spans are exported to Weave using `weave.log_call()`
+- Traces are visible at: https://wandb.ai/godutch/workflo/weave
+
+### Next steps
+1. Check the Weave dashboard: https://wandb.ai/godutch/workflo/weave
+2. Run the test: `uv run python test_weave_simple.py`
+3. Enable debug mode: Set `WEAVE_DEBUG=true` in your `.env` for detailed logs
+
+The Weave tracing implementation is now working and will display traces on the Weave dashboard when your agents run.

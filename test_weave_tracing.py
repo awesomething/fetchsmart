@@ -16,6 +16,13 @@ from opentelemetry.sdk.trace.export import BatchSpanProcessor
 # Add app to path
 sys.path.insert(0, os.path.dirname(__file__))
 
+# Load environment variables from .env if available
+try:
+    from dotenv import load_dotenv
+    load_dotenv("app/.env")
+except ImportError:
+    pass
+
 from app.utils.weave_tracing import WeaveSpanExporter
 
 def test_weave_tracing():

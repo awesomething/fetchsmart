@@ -520,4 +520,4 @@ NEXT_PUBLIC_RECRUITING_API_URL=http://127.0.0.1:8085  # Mock API (if using)
 
 ## License
 
-Apache-2.0 (unless noted otherwise in third-party files).
+See custom License above.

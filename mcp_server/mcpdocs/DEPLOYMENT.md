@@ -392,3 +392,91 @@ Or simply use the deployment scripts again - they will update the existing servi
 - Recruitment Backend uses A2A protocol (base URL, no `/mcp` path)
 - Environment variables can be updated in Cloud Run console or via `gcloud run services update`
 
+
+### How to Verify Your MCP Servers Deployed
+
+
+## Manual deployment documentation
+
+**Location:** `mcp_server/mcpdocs/DEPLOYMENT.md`
+
+This file includes manual deployment steps and troubleshooting.
+
+## About the deploy scripts
+
+The `deploy.sh` scripts read environment variables from your shell; they don't contain raw keys. You need to set them before running the script:
+
+```bash
+# Set environment variables first
+export SUPABASE_URL="your-url"
+export SUPABASE_SERVICE_KEY="your-key"
+export JSEARCHRAPDKEY="your-key"
+
+# Then run the script
+./deploy.sh
+```
+
+## Check Cloud Run environment variables
+
+### Method 1: Using gcloud CLI (recommended)
+
+**Check Staffing Backend:**
+```bash
+gcloud run services describe staffing-backend \
+  --region us-central1 \
+  --project baseshare \
+  --format="value(spec.template.spec.containers[0].env)"
+```
+
+**Check Recruitment Backend:**
+```bash
+gcloud run services describe recruitment-backend \
+  --region us-central1 \
+  --project baseshare \
+  --format="value(spec.template.spec.containers[0].env)"
+```
+
+### Method 2: Get full service details (JSON)
+
+**Staffing Backend:**
+```bash
+gcloud run services describe staffing-backend \
+  --region us-central1 \
+  --project baseshare \
+  --format=json | grep -A 20 "env"
+```
+
+**Recruitment Backend:**
+```bash
+gcloud run services describe recruitment-backend \
+  --region us-central1 \
+  --project baseshare \
+  --format=json | grep -A 20 "env"
+```
+
+### Method 3: Cloud Console
+
+1. Go to [Cloud Run Console](https://console.cloud.google.com/run)
+2. Click on `staffing-backend` or `recruitment-backend`
+3. Go to the "Variables & Secrets" tab
+4. View all environment variables (values are masked for security)
+
+## Update environment variables if missing
+
+If variables are missing, update them:
+
+**Staffing Backend:**
+```bash
+gcloud run services update staffing-backend \
+  --region us-central1 \
+  --project baseshare \
+  --update-env-vars="SUPABASE_URL=your-url,SUPABASE_SERVICE_KEY=your-key,JSEARCHRAPDKEY=your-key"
+```
+
+**Recruitment Backend:**
+```bash
+gcloud run services update recruitment-backend \
+  --region us-central1 \
+  --project baseshare \
+  --update-env-vars="GITHUB_TOKEN=your-token,HUNTER_API_KEY=your-key"
+```

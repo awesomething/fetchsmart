@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Tuple
 
 import requests
 from google.adk.agents import LlmAgent
+from google.adk.tools.mcp_tool import MCPToolset, StreamableHTTPConnectionParams
 
 # ---------------------------------------------------------------------------
 # Default profile overrides (used by UI mock data & email lookup prompt)
@@ -142,27 +143,67 @@ DEFAULT_PROFILE_OVERRIDES: Dict[str, Dict[str, Any]] = {
 # Recruitment backend access (for candidate search)
 # ---------------------------------------------------------------------------
 
-# Add MCP server path so we can import the in-process recruitment backend
-mcp_server_path = Path(__file__).parent.parent.parent.parent / "mcp_server" / "recruitment_backend"
-if mcp_server_path.exists():
-    sys.path.insert(0, str(mcp_server_path))
-    print(f"[INFO] Added MCP server path: {mcp_server_path}")
-else:
-    print(f"[WARN] MCP server path does not exist: {mcp_server_path}")
+# Check for MCP server URL first (production/remote deployment)
+recruitment_mcp_url = os.getenv("RECRUITMENT_MCP_SERVER_URL") or os.getenv("MCP_SERVER_URL")
+recruitment_mcp_toolset = None
 
-# Import recruitment backend services (for search_candidates_tool only)
-try:
-    from recruitment_service import recruitment_service
-except ImportError:
-    recruitment_service = None
-    print("[WARN] recruitment_service not available - candidate search will be limited")
+if recruitment_mcp_url:
+    print(f"[INFO] Attempting to connect to recruitment MCP backend: {recruitment_mcp_url}")
+    try:
+        # Use MCP server via HTTP (production)
+        # Note: Recruitment backend uses A2A protocol but exposes MCP tools
+        # Use base URL (no /mcp path) as per deployment docs
+        recruitment_mcp_toolset = MCPToolset(
+            connection_params=StreamableHTTPConnectionParams(url=recruitment_mcp_url),
+            tool_filter=["search_candidates_tool"]
+        )
+        print(f"[OK] ✅ MCP recruitment backend configured successfully: {recruitment_mcp_url}")
+        print(f"[OK] ✅ search_candidates_tool will be available via MCP")
+    except Exception as e:
+        import traceback
+        print(f"[ERROR] ❌ Failed to initialize MCP recruitment backend: {e}")
+        print(f"[ERROR] ❌ Error type: {type(e).__name__}")
+        print(f"[ERROR] ❌ Traceback: {traceback.format_exc()}")
+        print(f"[WARN] ⚠️  Falling back to local recruitment service (if available)")
+        recruitment_mcp_toolset = None
+else:
+    print("[INFO] RECRUITMENT_MCP_SERVER_URL not set - will use local recruitment service if available")
+
+# Fallback: Try to import local recruitment service (local development)
+recruitment_service = None
+if not recruitment_mcp_toolset:
+    mcp_server_paths = [
+        Path(__file__).parent.parent.parent.parent / "mcp_server" / "recruitment_backend",
+        Path(__file__).parent.parent.parent.parent / "app" / "data" / "recruitment_backend",
+        Path(__file__).parent.parent.parent.parent / "recruitment_backend",
+    ]
+    
+    for mcp_server_path in mcp_server_paths:
+        if mcp_server_path.exists():
+            sys.path.insert(0, str(mcp_server_path))
+            print(f"[INFO] Added MCP server path: {mcp_server_path}")
+            try:
+                from recruitment_service import recruitment_service
+                print(f"[OK] Successfully imported recruitment_service from {mcp_server_path}")
+                break
+            except ImportError as e:
+                print(f"[WARN] Failed to import from {mcp_server_path}: {e}")
+                continue
+
+if recruitment_service is None and recruitment_mcp_toolset is None:
+    print("[ERROR] ❌ CRITICAL: No recruitment backend available!")
+    print("[ERROR] ❌ Both MCP server and local service are unavailable")
+    print("[INFO] 💡 Solutions:")
+    print("  1. Set RECRUITMENT_MCP_SERVER_URL environment variable to your deployed backend URL")
+    print("  2. Or ensure mcp_server/recruitment_backend is accessible locally")
+    print("[WARN] ⚠️  Candidate search will fail until backend is configured")
 
 # Email lookup will be implemented locally in this file so it does NOT depend
 # on importing anything from the recruitment backend. This avoids import-path
 # issues when running in different environments (Vertex, local CLI, etc.).
 
 # ============================================================================
-# MCP Tool: Search Candidates
+# MCP Tool: Search Candidates (local fallback)
 # ============================================================================
 def search_candidates_tool(
     job_description: str,
@@ -171,12 +212,37 @@ def search_candidates_tool(
 ) -> str:
     """
     Search for candidates matching job requirements using the recruitment backend data.
+    This is a local fallback - if MCP server is configured, use that instead.
+    
+    NOTE: If MCP server is configured, this function should NOT be called.
+    The MCPToolset will expose search_candidates_tool directly from the server.
     """
-    if recruitment_service is None:
+    # This should only be called if MCP toolset is not available
+    if recruitment_mcp_toolset:
+        # This shouldn't happen - MCP toolset should handle it
         return json.dumps({
-            "error": "Recruitment backend not available - ensure mcp_server/recruitment_backend is accessible",
-            "status": "failed"
+            "error": "MCP backend is configured but local function was called - this is a configuration error",
+            "status": "failed",
+            "debug": {
+                "mcp_url": recruitment_mcp_url,
+                "has_mcp_toolset": recruitment_mcp_toolset is not None
+            }
         })
+    
+    # Local service (local development only)
+    if recruitment_service is None:
+        error_msg = {
+            "error": "Recruitment backend not available",
+            "status": "failed",
+            "details": "Neither MCP server nor local service is available",
+            "solutions": [
+                "Set RECRUITMENT_MCP_SERVER_URL environment variable to your deployed backend URL",
+                "Or ensure mcp_server/recruitment_backend is accessible locally",
+                "Check deployment logs for MCP connection errors"
+            ]
+        }
+        print(f"[ERROR] search_candidates_tool called but no backend available")
+        return json.dumps(error_msg, indent=2)
 
     try:
         candidates = recruitment_service.candidates
@@ -503,18 +569,30 @@ def find_emails_by_github_usernames_tool(github_usernames: str) -> str:
     }
     return json.dumps(response, indent=2)
 
-# Build tools list – all functions are local and always available
-tools_list = [search_candidates_tool, find_candidate_emails_tool, find_emails_by_github_usernames_tool]
+# Build tools list
+tools_list = [find_candidate_emails_tool, find_emails_by_github_usernames_tool]
+
+# Add search_candidates_tool: use MCP if available, otherwise local function
+if recruitment_mcp_toolset:
+    # Use MCP toolset (exposes search_candidates_tool from MCP server)
+    tools_list.append(recruitment_mcp_toolset)
+    print("[INFO] Using MCP toolset for search_candidates_tool (production)")
+else:
+    # Use local function (local development)
+    tools_list.append(search_candidates_tool)
+    print("[INFO] Using local search_candidates_tool (local development)")
 
 print("[INFO] ========================================")
 print("[INFO] Recruiter Orchestrator Agent Setup")
 print("[INFO] ========================================")
 print("[INFO] Tools registered:")
-print("  - search_candidates_tool: ✅ (local)")
-print("  - find_candidate_emails_tool: ✅ (local Hunter API)")
-print("  - find_emails_by_github_usernames_tool: ✅ (local Hunter API)")
+if recruitment_mcp_toolset:
+    print("  - search_candidates_tool: [OK] (MCP server)")
+else:
+    print("  - search_candidates_tool: [OK] (local)")
+print("  - find_candidate_emails_tool: [OK] (local Hunter API)")
+print("  - find_emails_by_github_usernames_tool: [OK] (local Hunter API)")
 print(f"[INFO] Total tools in list: {len(tools_list)}")
-print(f"[INFO] Tool names: {[tool.__name__ for tool in tools_list]}")
 print("[INFO] ========================================")
 
 # Create the agent

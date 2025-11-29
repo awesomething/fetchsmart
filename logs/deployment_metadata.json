@@ -1,7 +1,7 @@
 {
-  "remote_agent_engine_id": "projects/143611176760/locations/us-central1/reasoningEngines/4208345570940551168",
-  "deployment_timestamp": "2025-11-25T22:38:39.740613",
-  "agent_name": "recruiter-agent",
+  "remote_agent_engine_id": "projects/143611176760/locations/us-central1/reasoningEngines/5994058007565041664",
+  "deployment_timestamp": "2025-11-29T08:47:56.029033",
+  "agent_name": "recruiter",
   "project": "baseshare",
   "location": "us-central1"
 }
