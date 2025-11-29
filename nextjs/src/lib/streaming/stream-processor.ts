@@ -349,8 +349,21 @@ async function processTextContent(
     };
 
     // Force immediate update to prevent React batching
+    // In production, ensure updates are flushed immediately
     flushSync(() => {
       onMessageUpdate(updatedMessage);
     });
+    
+    // Additional flush for production to ensure UI updates
+    if (typeof window !== "undefined" && process.env.NODE_ENV === "production") {
+      // Force a microtask to ensure React has processed the update
+      queueMicrotask(() => {
+        // Trigger a re-render check
+        if (document.visibilityState === "visible") {
+          // Force a repaint
+          void document.body.offsetHeight;
+        }
+      });
+    }
   }
 }
