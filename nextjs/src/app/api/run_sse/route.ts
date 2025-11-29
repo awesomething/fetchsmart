@@ -12,8 +12,8 @@ import {
 import { handleAgentEngineStreamRequest } from "@/lib/handlers/run-sse-agent-engine-handler";
 import { handleLocalBackendStreamRequest } from "@/lib/handlers/run-sse-local-backend-handler";
 
-// Configure maximum execution duration (5 minutes = 300 seconds)
-export const maxDuration = 300;
+// Configure maximum execution duration (Vercel max is 60 seconds)
+export const maxDuration = 60;
 
 /**
  * Run SSE API Route - Main Orchestrator
