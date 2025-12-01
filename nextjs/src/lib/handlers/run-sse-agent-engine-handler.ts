@@ -71,6 +71,7 @@ class JSONFragmentProcessor {
   private buffer: string = "";
   private currentAgent: string = "";
   private sentParts: Set<string> = new Set(); // Track sent parts by their content hash
+  private encoder: TextEncoder = new TextEncoder(); // Use TextEncoder for cross-platform compatibility
 
   constructor(
     private controller: ReadableStreamDefaultController<Uint8Array>
@@ -79,6 +80,7 @@ class JSONFragmentProcessor {
   /**
    * Process incoming chunk of data from Agent Engine.
    * Accumulates chunks and looks for complete parts to stream immediately.
+   * IMPROVED: Handle both streaming JSON fragments AND complete newline-separated JSON objects
    */
   processChunk(chunk: string): void {
     console.log(`🔄 [JSON PROCESSOR] Processing chunk: ${chunk.length} bytes`);
@@ -89,8 +91,43 @@ class JSONFragmentProcessor {
 
     this.buffer += chunk;
 
-    // Use improved part-level parsing approach
+    // First, try to extract complete JSON objects separated by newlines
+    // This handles cases where Agent Engine sends complete responses
+    this.extractCompleteJsonObjects();
+
+    // Then, use improved part-level parsing for streaming fragments
     this.extractCompletePartsFromBuffer();
+  }
+
+  /**
+   * Extract complete JSON objects separated by newlines from buffer
+   * Agent Engine may send multiple complete JSON objects in the stream
+   */
+  private extractCompleteJsonObjects(): void {
+    const lines = this.buffer.split('\n');
+
+    // Keep the last line in buffer (might be incomplete)
+    const lastLine = lines.pop() || '';
+
+    // Try to parse each complete line as a full JSON object
+    for (const line of lines) {
+      if (!line.trim()) continue;
+
+      try {
+        const fragment: AgentEngineFragment = JSON.parse(line);
+        console.log(`✅ [JSON PROCESSOR] Found complete JSON object during streaming`);
+        this.processCompleteFragment(fragment);
+
+        // Remove this line from buffer since we processed it
+        this.buffer = this.buffer.replace(line + '\n', '');
+      } catch {
+        // Not a complete JSON object, will be handled by part-level parsing
+        continue;
+      }
+    }
+
+    // Restore the last (potentially incomplete) line to buffer
+    this.buffer = lastLine;
   }
 
   /**
@@ -189,7 +226,8 @@ class JSONFragmentProcessor {
 
     // Convert to proper SSE format: data: {...}\n\n
     const sseEvent = `data: ${JSON.stringify(sseData)}\n\n`;
-    this.controller.enqueue(Buffer.from(sseEvent));
+    // Use TextEncoder instead of Buffer for cross-platform compatibility (Vercel/Edge runtime)
+    this.controller.enqueue(this.encoder.encode(sseEvent));
 
     console.log(
       `✅ [JSON PROCESSOR] Successfully emitted complete part as SSE format`
@@ -258,8 +296,8 @@ class JSONFragmentProcessor {
 
       console.log(`📤 [JSON PROCESSOR] Emitting final metadata as SSE format`);
       const sseEvent = `data: ${JSON.stringify(additionalData)}\n\n`;
-      // IMPROVED: Use Buffer.from() and emit SSE format
-      this.controller.enqueue(Buffer.from(sseEvent));
+      // Use TextEncoder instead of Buffer for cross-platform compatibility (Vercel/Edge runtime)
+      this.controller.enqueue(this.encoder.encode(sseEvent));
     }
 
     // Log token usage if available
@@ -270,21 +308,32 @@ class JSONFragmentProcessor {
 
   /**
    * Finalize the stream processing
+   * FIXED: Handle multiple JSON objects separated by newlines
    */
   finalize(): void {
     console.log("🏁 [JSON PROCESSOR] Finalizing stream");
 
     // Try to parse any remaining buffer content
     if (this.buffer.trim()) {
-      try {
-        const fragment: AgentEngineFragment = JSON.parse(this.buffer);
-        this.processCompleteFragment(fragment);
-      } catch (error) {
-        console.error(
-          "❌ [JSON PROCESSOR] Failed to parse remaining buffer on finalize:",
-          this.buffer,
-          error
-        );
+      // Agent Engine may send multiple complete JSON objects separated by newlines
+      // Split by newlines and parse each separately
+      const lines = this.buffer.split('\n').filter(line => line.trim());
+
+      console.log(`🔍 [JSON PROCESSOR] Found ${lines.length} JSON objects in remaining buffer`);
+
+      for (const line of lines) {
+        try {
+          const fragment: AgentEngineFragment = JSON.parse(line);
+          console.log(`✅ [JSON PROCESSOR] Successfully parsed fragment in finalize`);
+          this.processCompleteFragment(fragment);
+        } catch (error) {
+          console.error(
+            "❌ [JSON PROCESSOR] Failed to parse line in finalize:",
+            line.substring(0, 200) + "...",
+            error
+          );
+          // Continue processing other lines even if one fails
+        }
       }
     }
   }

@@ -257,15 +257,13 @@ function handleSSEParsingError(data: string, error: unknown): ParsedSSEData {
     console.warn("Could not extract error message from malformed JSON:", extractError);
   }
   
-  // Only log the full error details in development
-  if (process.env.NODE_ENV === 'development') {
+  // Always log error details to help with debugging (especially in production)
   console.error(
     'Error parsing SSE data. Raw data (truncated): "',
     truncatedData,
     '". Error details:',
     error
   );
-  }
 
   return {
     messageId: undefined,
