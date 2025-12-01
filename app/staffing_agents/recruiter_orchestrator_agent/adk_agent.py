@@ -47,7 +47,8 @@ def get_recruiter_orchestrator_agent() -> LlmAgent:
     # If no sub-agents were created, that's a problem
     if not sub_agents:
         raise RuntimeError("Failed to create any sub-agents for staffing recruiter orchestrator")
-        
+    
+    try:
         return LlmAgent(
             name="StaffingRecruiterOrchestrator",
             model=config.model,
