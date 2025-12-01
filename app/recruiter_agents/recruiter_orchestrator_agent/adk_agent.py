@@ -637,16 +637,18 @@ recruiter_orchestrator_agent = LlmAgent(
        )
        ```
     
-    3. **CRITICAL**: The tool returns JSON with candidate data. You MUST return ONLY the raw JSON 
-       response from the tool - DO NOT add any commentary, formatting, or additional text.
-       Just return the exact JSON string you receive from the tool.
-    
+    3. **CRITICAL**: After calling the tool, you MUST provide BOTH:
+       a) A brief human-readable summary (2-3 sentences)
+       b) The complete JSON response from the tool (embedded in a code block)
+
     **Response Format After Using Tool:**
-    
-    Return ONLY the raw JSON from search_candidates_tool, nothing else.
-    The frontend will automatically parse and display the candidates in a beautiful card layout.
-    
-    Example response (return EXACTLY what the tool gives you):
+
+    First, provide a brief summary of what you found, then include the JSON data.
+
+    Example response format:
+    ```
+    I found 5 senior React developers matching your requirements. Here are the top candidates with their GitHub profiles and match scores.
+
     ```json
     {
       "query": "React developer",
@@ -657,17 +659,15 @@ recruiter_orchestrator_agent = LlmAgent(
       "top_candidates": [...]
     }
     ```
-    
-    DO NOT add:
-    - "Here are the results..."
-    - "I found X candidates..."
-    - Match summaries or explanations
-    - Next steps or recommendations
-    
-    The frontend handles all the presentation. Your job is to:
-    1. Call the tool with the right parameters
-    2. Return the JSON response immediately
-    3. Nothing else!
+    ```
+
+    **Summary Guidelines:**
+    - Keep it brief (2-3 sentences max)
+    - Mention the number of candidates found
+    - Highlight key match criteria or notable findings
+    - Be conversational and helpful
+
+    Then include the full JSON response in a code block so the frontend can parse and display it.
     
     **Email Lookup - TWO DISTINCT SCENARIOS:**
     
@@ -703,8 +703,10 @@ recruiter_orchestrator_agent = LlmAgent(
     # Return updated_results JSON with emails - DO NOT return search_results_again!
     ```
     
-    **IMPORTANT**: When returning email lookup results, return ONLY the JSON from `find_candidate_emails_tool`.
-    Do NOT return the original search results. The email lookup tool returns the same structure with email fields added.
+    **IMPORTANT**: When returning email lookup results:
+    1. Provide a brief summary (e.g., "I found email addresses for 3 of 5 candidates.")
+    2. Return the JSON from `find_candidate_emails_tool` in a code block
+    3. Do NOT return the original search results separately
     
     **Scenario 2: Direct Username Email Lookup (TESTING/UTILITY ONLY)**
     
@@ -715,7 +717,8 @@ recruiter_orchestrator_agent = LlmAgent(
     1. Extract the GitHub usernames from the user's request (comma-separated list)
     2. Call `find_emails_by_github_usernames_tool` immediately with the usernames
        Example: `find_emails_by_github_usernames_tool("Rowens72, Mithonmasud, Marquish, Ekeneakubue")`
-    3. Return ONLY the JSON response from the tool - it will include email fields for each candidate
+    3. Provide a brief summary of the results (e.g., "Found email addresses for 4 GitHub users.")
+    4. Return the JSON response from the tool in a code block - it will include email fields for each candidate
     
     **DO NOT**:
     - Call `search_candidates_tool` first (this tool works independently)
@@ -737,8 +740,10 @@ recruiter_orchestrator_agent = LlmAgent(
     - `email`: The found email address (or null if not found)
     - `email_confidence`: Confidence score 0-100 (or null)
     - `email_source`: "github_profile" or "hunter_api" (or null)
-    
-    Return the updated JSON response with emails included. The frontend will automatically update the candidate cards.
+
+    **Response Format for Email Lookups:**
+    First provide a brief summary, then include the JSON with emails in a code block.
+    The frontend will automatically parse and display the updated candidate cards with email addresses.
     
     **For General Recruiting Questions (without tool):**
     
