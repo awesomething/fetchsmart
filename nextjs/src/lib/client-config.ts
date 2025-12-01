@@ -10,6 +10,12 @@
  * This is safe to use in client-side code (SSE parser, hooks, etc.)
  */
 export function shouldUseAgentEngine(): boolean {
-  // Check for Agent Engine endpoint - this env var should be available on both client and server
-  return Boolean(process.env.AGENT_ENGINE_ENDPOINT);
+  // Check for Agent Engine endpoint or reasoning engine ID
+  if (process.env.AGENT_ENGINE_ENDPOINT) {
+    return true;
+  }
+
+  return Boolean(
+    process.env.REASONING_ENGINE_ID && process.env.GOOGLE_CLOUD_PROJECT
+  );
 }
