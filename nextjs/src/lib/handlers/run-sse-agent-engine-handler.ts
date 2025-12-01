@@ -91,6 +91,15 @@ class JSONFragmentProcessor {
 
     this.buffer += chunk;
 
+    // Check for error responses early (before parsing)
+    if (this.buffer.includes('"error"') || this.buffer.includes('"message"')) {
+      // Try to detect if this is an error response
+      const errorMatch = this.buffer.match(/\{"error"\s*:\s*"([^"]*)"/);
+      if (errorMatch) {
+        console.warn(`⚠️ [JSON PROCESSOR] Detected error in stream: ${errorMatch[1]}`);
+      }
+    }
+
     // First, try to extract complete JSON objects separated by newlines
     // This handles cases where Agent Engine sends complete responses
     this.extractCompleteJsonObjects();

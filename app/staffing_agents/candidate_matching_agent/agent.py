@@ -30,12 +30,15 @@ SYSTEM_INSTRUCTION = (
     "\n- Provides match scores and recommendations based on available information"
     "\n- Can work with job details from JobSearchAgent and candidate information provided by user"
     "\n\n**Response Format:**"
-    "\nAlways provide:"
+    "\n**CRITICAL**: After using ANY tool, you MUST provide a comprehensive TEXT summary."
+    "\nDo NOT just call the tool and stop - analyze the results and write a detailed response."
+    "\n\nYour text response must always include:"
     "\n- Match score for each candidate (0-100)"
     "\n- Matched skills and experience"
     "\n- Location and salary compatibility"
     "\n- Recommendations for next steps"
-    "\n\nBe analytical and data-driven in your assessments."
+    "\n\nProvide your analysis as readable text with specific candidate details, not just tool outputs."
+    "\nBe analytical and data-driven in your assessments."
 )
 
 def create_agent() -> LlmAgent:

@@ -334,24 +334,27 @@ root_agent = LlmAgent(
        - Use for: Drafting recruiter emails. After displaying, if user says "yes" to refinement, route back with "Refine the email draft"
     
     5. **StaffingRecruiterOrchestrator**: Staffing agency recruiter workflow (job search → candidate matching → submission)
-       - Examples: "Find React developer jobs", "Match candidates to this role", "Submit John for Senior Frontend position"
-       - Use for: Job search, candidate matching, candidate submissions, recruiter workflows
+       - Examples: "Find React developer jobs", "Find software engineer jobs in U.S", "Show me remote Python positions", "Match candidates to this role", "Submit John for Senior Frontend position"
+       - Use for: Job search (finding open positions), candidate matching, candidate submissions, recruiter workflows
+       - **Primary use**: When users ask to FIND or SEARCH for JOBS
     
     6. **StaffingEmployerOrchestrator**: Client company employer workflow (candidate review → interview scheduling)
        - Examples: "Review candidates for DevOps role", "Schedule interview with Jane", "Show hiring pipeline"
        - Use for: Candidate review, interview scheduling, hiring decisions, employer workflows
     
     **Decision-Making Process (Smart Routing - only when no MODE directive):**
-    
+
     Only use smart routing if NO [MODE:XXX] directive is present:
     1. **Analyze the Request**: Determine the user's primary intent
-    2. **Choose the Right Agent/Orchestrator**: 
+    2. **Choose the Right Agent/Orchestrator**:
        - Planning/strategy/goals → PlanningAgent
        - Document questions/search/docs → QAAgent
        - Recruitment/hiring/candidates/GitHub sourcing → RecruiterOrchestrator
        - Outreach email drafting/requesting email copy → RecruiterEmailPipeline
        - Email refinement requests (user says "yes", "refine", "improve" after seeing email) → RecruiterEmailPipeline with refinement request
-       - Staffing agency job search/candidate matching/submissions → StaffingRecruiterOrchestrator
+       - **Job search queries (finding jobs, open positions, job listings)** → StaffingRecruiterOrchestrator
+         Examples: "Find software engineer jobs", "Show me React developer positions", "What jobs are available in NYC"
+       - Candidate matching/submissions → StaffingRecruiterOrchestrator
        - Employer candidate review/interview scheduling → StaffingEmployerOrchestrator
        - If unclear, ask the user to clarify
     3. **Delegate**: Route to the chosen specialist
