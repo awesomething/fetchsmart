@@ -370,7 +370,7 @@ export function ChatContainer(): React.JSX.Element {
                 onClick={handleCloseWelcomeVideo}
                 className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
               >
-                Got it! Let's get started
+                Got it! Let&apos;s get started
               </button>
             </div>
           </div>

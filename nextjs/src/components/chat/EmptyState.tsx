@@ -1,7 +1,7 @@
 "use client";
 
 import { useChatContext } from "./ChatProvider";
-import { Search, CheckSquare, Target, BarChart3, MessageCircle, Mail } from "lucide-react";
+import { Search, CheckSquare, BarChart3, MessageCircle, Mail } from "lucide-react";
 
 /**
  * EmptyState - Recruitment prompt templates
