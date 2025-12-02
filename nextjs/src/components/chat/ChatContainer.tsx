@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BackendHealthChecker } from "@/components/chat/BackendHealthChecker";
 import { ChatHeader } from "./ChatHeader";
 import { ChatContent } from "./ChatContent";
@@ -10,6 +10,7 @@ import { ResizableSplitPane } from "./ResizableSplitPane";
 import { useChatContext } from "./ChatProvider";
 import { CandidateProfile } from "@/types/recruiting";
 import { Users, X } from "lucide-react";
+import { WalkthroughOverlay } from "./WalkthroughOverlay";
 
 // Mock candidates for default display
 const mockCandidates: CandidateProfile[] = [
@@ -136,7 +137,42 @@ const mockCandidates: CandidateProfile[] = [
 export function ChatContainer(): React.JSX.Element {
   const { candidates, isLoadingCandidates } = useChatContext();
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
-  
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState(false);
+  const [showWelcomeVideo, setShowWelcomeVideo] = useState(false);
+  const [showWalkthrough, setShowWalkthrough] = useState(false);
+
+  // Check if user has seen the welcome video before
+  useEffect(() => {
+    const hasSeenWelcome = localStorage.getItem('hasSeenWelcomeVideo');
+    if (!hasSeenWelcome) {
+      // Delay slightly to ensure page is fully loaded
+      const timer = setTimeout(() => setShowWelcomeVideo(true), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, []);
+
+  // Mark as seen when user closes the video and start walkthrough
+  const handleCloseWelcomeVideo = () => {
+    setShowWelcomeVideo(false);
+    localStorage.setItem('hasSeenWelcomeVideo', 'true');
+
+    // Start walkthrough after video closes
+    const hasSeenWalkthrough = localStorage.getItem('hasSeenWalkthrough');
+    if (!hasSeenWalkthrough) {
+      setTimeout(() => setShowWalkthrough(true), 500);
+    }
+  };
+
+  const handleCompleteWalkthrough = () => {
+    setShowWalkthrough(false);
+    localStorage.setItem('hasSeenWalkthrough', 'true');
+  };
+
+  const handleSkipWalkthrough = () => {
+    setShowWalkthrough(false);
+    localStorage.setItem('hasSeenWalkthrough', 'true');
+  };
+
   // Use dynamic candidates if available, otherwise show mock candidates
   const displayCandidates = candidates && candidates.length > 0 ? candidates : mockCandidates;
 
@@ -144,28 +180,37 @@ export function ChatContainer(): React.JSX.Element {
   const leftPanel = (
     <div className="h-full flex flex-col bg-slate-900">
       <div className="flex-shrink-0 bg-slate-800/50 border-b border-slate-700 px-4 py-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-semibold text-slate-200">
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-lg font-semibold text-slate-200 truncate">
               Enrich Candidate Profiles
             </h2>
             <p className="text-xs text-slate-400 mt-1">
               {displayCandidates.length} profiles
             </p>
           </div>
-          {/* Mobile close button */}
-          <button
-            onClick={() => setIsMobileDrawerOpen(false)}
-            className="md:hidden p-2 hover:bg-slate-700/50 rounded-lg transition-colors"
-            aria-label="Close candidates"
-          >
-            <X className="h-5 w-5 text-slate-400" />
-          </button>
+          <div className="flex items-center gap-2">
+            {/* Feedback Button */}
+            <button
+              onClick={() => setIsFeedbackOpen(true)}
+              className="bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors duration-200 text-xs sm:text-sm whitespace-nowrap"
+            >
+              Feedback
+            </button>
+            {/* Mobile close button */}
+            <button
+              onClick={() => setIsMobileDrawerOpen(false)}
+              className="md:hidden p-2 hover:bg-slate-700/50 rounded-lg transition-colors flex-shrink-0"
+              aria-label="Close candidates"
+            >
+              <X className="h-5 w-5 text-slate-400" />
+            </button>
+          </div>
         </div>
       </div>
       <div className="flex-1 overflow-hidden min-h-0">
-        <CandidateGrid 
-          candidates={displayCandidates} 
+        <CandidateGrid
+          candidates={displayCandidates}
           isLoading={isLoadingCandidates}
         />
       </div>
@@ -243,6 +288,102 @@ export function ChatContainer(): React.JSX.Element {
           )}
         </div>
       </BackendHealthChecker>
+
+      {/* Feedback Modal */}
+      {isFeedbackOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-[200] flex items-center justify-center p-4"
+          onClick={() => setIsFeedbackOpen(false)}
+        >
+          <div
+            className="bg-slate-800 rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-700">
+              <h2 className="text-lg font-semibold text-slate-100">Send Feedback</h2>
+              <button
+                onClick={() => setIsFeedbackOpen(false)}
+                className="text-slate-400 hover:text-slate-100 transition-colors"
+                aria-label="Close"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6">
+              <iframe
+                src="https://videobook-u42797.vm.elestio.app/form/3f84eff0-3703-4ac9-a703-84668c808179"
+                className="w-full h-[70vh] border-0"
+                title="Feedback Form"
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Welcome Video Modal - First Time Visitors */}
+      {showWelcomeVideo && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[250] flex items-center justify-center p-4"
+          onClick={handleCloseWelcomeVideo}
+        >
+          <div
+            className="bg-slate-800 rounded-lg shadow-2xl w-full max-w-4xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="flex items-center justify-between p-4 border-b border-slate-700 bg-gradient-to-r from-emerald-600 to-emerald-700">
+              <div>
+                <h2 className="text-xl font-bold text-white">Welcome to FetchSmart!</h2>
+                <p className="text-sm text-emerald-100 mt-1">Watch this quick tutorial to get started</p>
+              </div>
+              <button
+                onClick={handleCloseWelcomeVideo}
+                className="text-white hover:text-emerald-100 transition-colors p-1 hover:bg-white/10 rounded-lg"
+                aria-label="Close"
+              >
+                <svg className="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Video Content */}
+            <div className="relative bg-black" style={{ paddingBottom: '56.25%' }}>
+              <iframe
+                className="absolute inset-0 w-full h-full"
+                src="https://www.youtube.com/embed/Upr7zqxOOnU?autoplay=1&rel=0"
+                title="FetchSmart Welcome Tutorial"
+                frameBorder="0"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+
+            {/* Footer */}
+            <div className="p-4 bg-slate-800/50 border-t border-slate-700">
+              <button
+                onClick={handleCloseWelcomeVideo}
+                className="w-full bg-emerald-500 hover:bg-emerald-600 text-white font-semibold py-3 px-6 rounded-lg transition-colors duration-200"
+              >
+                Got it! Let&apos;s get started
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Walkthrough Overlay - Step-by-step guide */}
+      {showWalkthrough && (
+        <WalkthroughOverlay
+          onComplete={handleCompleteWalkthrough}
+          onSkip={handleSkipWalkthrough}
+        />
+      )}
     </div>
   );
 }

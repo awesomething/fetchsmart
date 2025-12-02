@@ -125,7 +125,7 @@ export function UserIdInput({
   }, [isEditing]);
 
   return (
-    <div className={`${className}`}>
+    <div className={`${className}`} data-walkthrough="user-id-input">
       {isEditing ? (
         <div className="bg-slate-700/50 backdrop-blur-sm border border-slate-600/50 rounded-lg p-2 flex items-center gap-2">
           <User className="w-4 h-4 text-slate-300 flex-shrink-0" />

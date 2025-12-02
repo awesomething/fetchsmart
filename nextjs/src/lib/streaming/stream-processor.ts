@@ -290,6 +290,53 @@ function processThoughts(
 }
 
 /**
+ * Filters unwanted content from text chunks for email generation pipeline
+ * Removes intermediate agent outputs, flags, and tool execution logs
+ *
+ * @param text - Raw text chunk from SSE stream
+ * @returns Filtered text or empty string if content should be hidden
+ */
+function filterEmailPipelineContent(text: string): string {
+  // Patterns to completely filter out (don't show to user)
+  const blockPatterns = [
+    /For context:\[EmailReviewer\] called tool/i,
+    /\[EmailReviewer\] called tool/i,
+    /\[EmailGenerator\] called tool/i,
+    /\[EmailRefiner\] called tool/i,
+    /email_review_tool/i,
+    /email_review/i,
+    /^(OK|REFINE|NO_EMAIL)\s*$/m, // Single-word flags on their own line
+  ];
+
+  // Check if this chunk should be completely blocked
+  for (const pattern of blockPatterns) {
+    if (pattern.test(text)) {
+      createDebugLog("CONTENT FILTER", "Blocking unwanted content:", {
+        pattern: pattern.source,
+        textPreview: text.substring(0, 100),
+      });
+      return "";
+    }
+  }
+
+  // Patterns to clean/remove from text (but keep rest of content)
+  const cleanPatterns = [
+    { pattern: /For context:\[EmailReviewer\][^\n]*/gi, replacement: "" },
+    { pattern: /\[EmailGenerator\]/gi, replacement: "" },
+    { pattern: /\[EmailRefiner\]/gi, replacement: "" },
+    { pattern: /\[EmailReviewer\]/gi, replacement: "" },
+    { pattern: /\[EmailPresenter\]/gi, replacement: "" },
+  ];
+
+  let cleanedText = text;
+  for (const { pattern, replacement } of cleanPatterns) {
+    cleanedText = cleanedText.replace(pattern, replacement);
+  }
+
+  return cleanedText;
+}
+
+/**
  * Processes text content parts based on agent type (like working example)
  *
  * @param textParts - Array of text strings from parsed SSE
@@ -307,11 +354,20 @@ async function processTextContent(
 ): Promise<void> {
   // Process each text chunk using OFFICIAL ADK TERMINATION SIGNAL PATTERN
   for (const text of textParts) {
+    // Filter unwanted content for email pipeline
+    const filteredText = filterEmailPipelineContent(text);
+
+    // Skip if content was completely filtered out
+    if (!filteredText && text.length > 0) {
+      createDebugLog("CONTENT FILTER", "Skipping filtered chunk");
+      continue;
+    }
+
     const currentAccumulated = accumulatedTextRef.current;
 
     // 🎯 OFFICIAL ADK TERMINATION SIGNAL PATTERN (matches Angular implementation):
     // if (newChunk == this.streamingTextMessage.text) { return; }
-    if (text === currentAccumulated && currentAccumulated.length > 0) {
+    if (filteredText === currentAccumulated && currentAccumulated.length > 0) {
       // Official ADK pattern: this is the termination signal
       // But we still need to ensure the final message state is preserved
       createDebugLog(
@@ -339,7 +395,7 @@ async function processTextContent(
 
     // This is a streaming chunk - add it to accumulated text and display
     // Official ADK pattern: direct concatenation (no spaces between chunks)
-    accumulatedTextRef.current += text; // Direct concatenation like official ADK
+    accumulatedTextRef.current += filteredText; // Direct concatenation like official ADK, but with filtered text
 
     const updatedMessage: Message = {
       type: "ai",

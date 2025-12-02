@@ -14,9 +14,13 @@ import {
   Loader2,
   Plus,
   AlertCircle,
+  Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { fetchActiveSessionsAction } from "@/lib/actions/session-list-actions";
+import {
+  fetchActiveSessionsAction,
+  deleteSessionAction,
+} from "@/lib/actions/session-list-actions";
 
 interface Session {
   id: string;
@@ -31,6 +35,7 @@ interface SessionSelectorProps {
   currentSessionId: string;
   onSessionSelect: (sessionId: string) => void;
   onCreateSession: (userId: string) => Promise<void>;
+  onSessionDelete?: (sessionId: string) => void;
   className?: string;
 }
 
@@ -39,12 +44,16 @@ export function SessionSelector({
   currentSessionId,
   onSessionSelect,
   onCreateSession,
+  onSessionDelete,
   className = "",
 }: SessionSelectorProps): React.JSX.Element {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [isCreatingSession, setIsCreatingSession] = useState<boolean>(false);
   const [isLoadingSessions, setIsLoadingSessions] = useState<boolean>(false);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(
+    null
+  );
 
   // Fetch active sessions from ADK backend
   const fetchActiveSessions = useCallback(
@@ -174,6 +183,86 @@ export function SessionSelector({
     }
   }, [currentSessionId, currentUserId]); // Removed sessions dependency to avoid circular updates
 
+  // Handle session deletion
+  const handleDeleteSession = async (
+    sessionId: string,
+    e: React.MouseEvent
+  ): Promise<void> => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (deletingSessionId || isLoadingSessions) {
+      console.log(
+        "⏭️ [SESSION_SELECTOR] Skipping deletion - already in progress or loading"
+      );
+      return; // Prevent deletion while already deleting or loading
+    }
+
+    const isCurrentSession = sessionId === currentSessionId;
+
+    console.log(
+      `🗑️ [SESSION_SELECTOR] Starting deletion for session: ${sessionId.substring(0, 8)}, isCurrent: ${isCurrentSession}`
+    );
+
+    setDeletingSessionId(sessionId);
+
+    try {
+      const result = await deleteSessionAction(currentUserId, sessionId);
+
+      console.log(
+        `📡 [SESSION_SELECTOR] Delete result:`,
+        result.success ? "SUCCESS" : "FAILED",
+        result.error || ""
+      );
+
+      if (result.success) {
+        // If we deleted the current session, switch to another or create new
+        if (isCurrentSession) {
+          const remainingSessions = sessions.filter(
+            (s) => s.id !== sessionId
+          );
+          if (remainingSessions.length > 0) {
+            // Switch to most recent session
+            const mostRecent = remainingSessions[0];
+            console.log(
+              `🔄 [SESSION_SELECTOR] Switching to session: ${mostRecent.id.substring(0, 8)}`
+            );
+            onSessionSelect(mostRecent.id);
+          } else {
+            // No other sessions, create a new one
+            console.log(
+              "➕ [SESSION_SELECTOR] No other sessions, creating new one"
+            );
+            await onCreateSession(currentUserId);
+          }
+        }
+
+        // Notify parent if callback provided
+        if (onSessionDelete) {
+          onSessionDelete(sessionId);
+        }
+
+        // Refresh session list after a short delay to ensure backend processed
+        setTimeout(async () => {
+          await fetchActiveSessions(currentUserId);
+        }, 300);
+
+        toast.success("Session deleted successfully");
+      } else {
+        throw new Error(result.error || "Failed to delete session");
+      }
+    } catch (error) {
+      console.error("❌ [SESSION_SELECTOR] Failed to delete session:", error);
+
+      toast.error("Failed to delete session", {
+        description:
+          error instanceof Error ? error.message : "Could not delete session",
+      });
+    } finally {
+      setDeletingSessionId(null);
+    }
+  };
+
   // Handle session selection or creation
   const handleSessionSelect = async (value: string): Promise<void> => {
     if (value === "create-new") {
@@ -223,7 +312,7 @@ export function SessionSelector({
   };
 
   return (
-    <div className={`${className}`}>
+    <div className={`${className}`} data-walkthrough="session-selector">
       {!currentUserId ? (
         <div className="flex items-center gap-2 text-xs text-slate-400">
           <MessageSquare className="w-4 h-4" />
@@ -232,7 +321,16 @@ export function SessionSelector({
       ) : (
         <div className="flex items-center gap-1.5 sm:gap-2">
           <span className="text-xs text-slate-400 hidden sm:inline">Session:</span>
-          <Select value={currentSessionId} onValueChange={handleSessionSelect}>
+          <Select
+            value={currentSessionId}
+            onValueChange={handleSessionSelect}
+            onOpenChange={(open) => {
+              // Keep dropdown open if we're deleting a session
+              if (!open && deletingSessionId) {
+                return;
+              }
+            }}
+          >
             <SelectTrigger className="w-36 sm:w-44 h-9 sm:h-12 text-xs bg-slate-700/50 border-slate-600/50 text-slate-100 hover:bg-slate-600/50 focus:border-emerald-500 px-2 sm:px-4 py-1">
               <SelectValue
                 placeholder={
@@ -274,26 +372,56 @@ export function SessionSelector({
                     <SelectItem
                       key={session.id}
                       value={session.id}
-                      className="text-slate-100 focus:bg-slate-700 focus:text-slate-50 cursor-pointer py-3 px-3"
+                      className="text-slate-100 focus:bg-slate-700 focus:text-slate-50 cursor-pointer py-3 px-3 pr-10"
                     >
-                      <div className="flex flex-col items-start w-full min-w-0">
-                        <span className="font-medium text-slate-100 text-sm truncate w-full">
-                          {session.title}
-                        </span>
-                        <div className="flex items-center gap-2 text-xs text-slate-300 mt-1">
-                          <Calendar className="w-3 h-3 flex-shrink-0" />
-                          <span className="flex-shrink-0">
-                            {formatDate(session.lastActivity)}
+                      <div className="flex items-center justify-between w-full min-w-0 gap-2">
+                        <div className="flex flex-col items-start w-full min-w-0 flex-1">
+                          <span className="font-medium text-slate-100 text-sm truncate w-full">
+                            {session.title}
                           </span>
-                          {session.messageCount !== undefined && (
-                            <>
-                              <span className="text-slate-500">•</span>
-                              <span className="flex-shrink-0">
-                                {session.messageCount} msg
-                              </span>
-                            </>
-                          )}
+                          <div className="flex items-center gap-2 text-xs text-slate-300 mt-1">
+                            <Calendar className="w-3 h-3 flex-shrink-0" />
+                            <span className="flex-shrink-0">
+                              {formatDate(session.lastActivity)}
+                            </span>
+                            {session.messageCount !== undefined && (
+                              <>
+                                <span className="text-slate-500">•</span>
+                                <span className="flex-shrink-0">
+                                  {session.messageCount} msg
+                                </span>
+                              </>
+                            )}
+                          </div>
                         </div>
+                        <button
+                          data-delete-session
+                          type="button"
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            handleDeleteSession(session.id, e);
+                          }}
+                          onPointerDown={(e) => {
+                            // Critical: prevent SelectItem from handling this event
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                          }}
+                          disabled={deletingSessionId === session.id}
+                          className="flex-shrink-0 p-1.5 rounded hover:bg-red-500/20 text-slate-400 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed relative z-10 pointer-events-auto"
+                          aria-label={`Delete ${session.title}`}
+                          title="Delete session"
+                        >
+                          {deletingSessionId === session.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="w-3.5 h-3.5" />
+                          )}
+                        </button>
                       </div>
                     </SelectItem>
                   ))}

@@ -13,7 +13,6 @@ import {
   Users,
   Mail,
   Briefcase,
-  DollarSign,
 } from "lucide-react";
 import { useChatContext } from "@/components/chat/ChatProvider";
 
@@ -65,7 +64,7 @@ export function InputForm({
       <form onSubmit={handleSubmit} className="relative">
         <div
           className={`
-          relative flex items-end gap-3 p-3 rounded-2xl border transition-all duration-200
+          relative flex items-end gap-2 sm:gap-3 p-2.5 sm:p-3 rounded-xl sm:rounded-2xl border transition-all duration-200
           ${
             isFocused
               ? "border-emerald-400/50 bg-slate-800/80 shadow-lg shadow-emerald-500/10"
@@ -88,9 +87,10 @@ export function InputForm({
               className="
                 resize-none border-0 bg-transparent text-slate-200 placeholder-slate-400
                 focus:ring-0 focus:outline-none focus:border-0 focus:shadow-none
-                min-h-[80px] max-h-48
+                min-h-[60px] sm:min-h-[80px] max-h-48
                 scrollbar-thin scrollbar-track-transparent scrollbar-thumb-slate-600
-                px-0 py-3
+                px-0 py-2 sm:py-3
+                text-sm sm:text-base
               "
               style={{
                 fontSize: "16px",
@@ -116,10 +116,10 @@ export function InputForm({
               variant="ghost"
               size="icon"
               onClick={() => setShowModeMenu((v) => !v)}
-              className="h-9 w-9 text-slate-300 hover:text-white"
+              className="h-8 w-8 sm:h-9 sm:w-9 text-slate-300 hover:text-white flex-shrink-0"
               title="Select agent mode"
             >
-              <Plus className="h-4 w-4" />
+              <Plus className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
             </Button>
 
             {showModeMenu && (
@@ -221,22 +221,22 @@ export function InputForm({
             size="sm"
             disabled={!inputValue.trim() || isLoading}
             className="
-              h-9 px-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700
+              h-8 sm:h-9 px-3 sm:px-4 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700
               text-white border-0 shadow-lg transition-all duration-200
               disabled:opacity-50 disabled:cursor-not-allowed
               disabled:bg-slate-600 disabled:from-slate-600 disabled:to-slate-600
-              flex items-center gap-2
+              flex items-center gap-1.5 sm:gap-2 flex-shrink-0
             "
           >
             {isLoading ? (
               <>
-                <Loader2 className="h-4 w-4 animate-spin" />
-                <span className="hidden sm:inline">Planning...</span>
+                <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                <span className="hidden sm:inline text-xs sm:text-sm">Planning...</span>
               </>
             ) : (
               <>
-                <Send className="h-4 w-4" />
-                <span className="hidden sm:inline">
+                <Send className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                <span className="hidden sm:inline text-xs sm:text-sm">
                   {context === "chat" ? "Send" : "Plan Goal"}
                 </span>
               </>
