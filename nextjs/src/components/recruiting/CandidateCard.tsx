@@ -47,8 +47,8 @@ export function CandidateCard({ candidate }: { candidate: CandidateProfile }) {
             </div>
           )}
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-lg truncate">{candidate.name}</h3>
-            <p className="text-sm text-muted-foreground truncate">
+            <h3 className="font-bold text-lg truncate text-slate-900 dark:text-slate-100">{candidate.name}</h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 truncate">
               @{candidate.github_username}
             </p>
           </div>
@@ -56,8 +56,8 @@ export function CandidateCard({ candidate }: { candidate: CandidateProfile }) {
         
         {/* Role and Experience */}
         <div className="mb-3">
-          <p className="font-semibold text-sm">{candidate.role}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="font-semibold text-sm text-slate-900 dark:text-slate-100">{candidate.role}</p>
+          <p className="text-xs text-slate-600 dark:text-slate-400">
             {experienceYears} years exp • {candidate.location}
           </p>
         </div>
@@ -72,22 +72,22 @@ export function CandidateCard({ candidate }: { candidate: CandidateProfile }) {
               {candidate.email}
             </a>
           ) : (
-            <span className="text-xs px-2 py-0.5 text-muted-foreground">
+            <span className="text-xs px-2 py-0.5 text-slate-600 dark:text-slate-400">
               No email found
             </span>
           )}
         </div>
         
         {/* GitHub Stats */}
-        <div className="flex gap-4 mb-3 text-sm text-muted-foreground">
+        <div className="flex gap-4 mb-3 text-sm text-slate-600 dark:text-slate-400">
           <div className="flex items-center gap-1">
             <GitFork className="h-4 w-4" />
-            <span className="font-medium">{candidate.github_stats.repos}</span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">{candidate.github_stats.repos}</span>
             <span className="text-xs">Repos</span>
           </div>
           <div className="flex items-center gap-1">
             <Star className="h-4 w-4" />
-            <span className="font-medium">{candidate.github_stats.stars}</span>
+            <span className="font-medium text-slate-900 dark:text-slate-100">{candidate.github_stats.stars}</span>
             <span className="text-xs">Stars</span>
           </div>
           {/* <div className="flex items-center gap-1">
@@ -115,7 +115,7 @@ export function CandidateCard({ candidate }: { candidate: CandidateProfile }) {
         {candidate.match_score !== undefined && (
           <div className="mb-4">
             <div className="flex justify-between text-xs mb-1.5">
-              <span className="text-muted-foreground">Assessment</span>
+              <span className="text-slate-600 dark:text-slate-400">Assessment</span>
               <span className="font-semibold text-primary">{candidate.match_score}/100</span>
             </div>
             <div className="w-full bg-muted rounded-full h-2">
