@@ -71,10 +71,10 @@ export function EmptyState(): React.JSX.Element {
 
           <div className="space-y-2 sm:space-y-3">
             <h1 className="text-2xl sm:text-3xl font-bold text-slate-100 px-2">
-              Let&apos;s talk about your hiring pipeline
+              Let&apos;s reduce your candidate sourcing time
           </h1>
             <p className="text-sm sm:text-base text-slate-400 px-2">
-              I&apos;m here to help you understand your candidate pipeline, improve GitHub sourcing, and make smarter recruiting decisions.
+              I&apos;m here to help you save time on finding candidates, improve GitHub sourcing, and make smarter tech recruiting decisions.
             </p>
           </div>
         </div>

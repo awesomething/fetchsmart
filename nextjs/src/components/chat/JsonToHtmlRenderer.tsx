@@ -441,20 +441,20 @@ Please generate a professional recruiting email that highlights their specific s
         )}
       </div>
 
-      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-4 space-y-3">
-        <p className="text-sm text-slate-200">
+      <div className="bg-slate-900/40 border border-slate-700/60 rounded-xl p-3 sm:p-4 space-y-3">
+        <p className="text-xs sm:text-sm text-slate-200">
           Would you like me to provide the email addresses of these candidates?
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2">
           <Button
             onClick={() => handleRequestCandidateEmails(searchResult)}
-            className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg"
+            className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg w-full sm:w-auto"
           >
             Yes, provide the emails
           </Button>
           <Button
             variant="ghost"
-            className="text-slate-300 hover:text-white border border-transparent hover:border-slate-600/60"
+            className="text-slate-300 hover:text-white border border-transparent hover:border-slate-600/60 w-full sm:w-auto"
           >
             Not right now
           </Button>
@@ -479,24 +479,24 @@ function renderEmailLookupResults(
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg p-4">
+      <div className="bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/20 rounded-lg p-3 sm:p-4">
         <div className="flex items-center gap-2 mb-2">
-          <MailCheck className="h-5 w-5 text-green-400" />
-          <h3 className="text-lg font-semibold text-slate-100">
+          <MailCheck className="h-4 w-4 sm:h-5 sm:w-5 text-green-400 flex-shrink-0" />
+          <h3 className="text-base sm:text-lg font-semibold text-slate-100">
             Email Lookup Results
           </h3>
         </div>
-        <p className="text-slate-300 text-sm">
+        <p className="text-slate-300 text-xs sm:text-sm">
           Found emails for <span className="font-semibold text-green-400">{candidatesWithEmails.length}</span> out of <span className="font-semibold text-blue-400">{total_matches}</span> candidates
         </p>
       </div>
 
       {/* Candidates with Emails */}
       {candidatesWithEmails.length > 0 && (
-        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3 sm:p-4">
           <div className="flex items-center gap-2 mb-3">
-            <Mail className="h-5 w-5 text-green-400" />
-            <h4 className="text-base font-semibold text-slate-100">
+            <Mail className="h-4 w-4 sm:h-5 sm:w-5 text-green-400 flex-shrink-0" />
+            <h4 className="text-sm sm:text-base font-semibold text-slate-100">
               Email Addresses Found
             </h4>
           </div>
@@ -504,27 +504,27 @@ function renderEmailLookupResults(
             {candidatesWithEmails.map((candidate: CandidateData, idx: number) => (
               <div
                 key={candidate.id || idx}
-                className="bg-slate-900/50 border border-green-500/20 rounded-lg p-3 hover:border-green-500/40 transition-colors"
+                className="bg-slate-900/50 border border-green-500/20 rounded-lg p-3 sm:p-4 hover:border-green-500/40 transition-colors"
               >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <h5 className="font-semibold text-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5 sm:gap-2 mb-1.5">
+                      <h5 className="font-semibold text-slate-100 text-sm sm:text-base truncate">
                         {candidate.name || candidate.github_username || 'Unknown'}
                       </h5>
                       {candidate.github_username && (
-                        <span className="text-xs text-slate-400">@{candidate.github_username}</span>
+                        <span className="text-xs text-slate-400 truncate">@{candidate.github_username}</span>
                       )}
                     </div>
                     <a
                       href={`mailto:${candidate.email}`}
-                      className="text-green-400 hover:text-green-300 hover:underline text-sm font-mono flex items-center gap-2"
+                      className="text-green-400 hover:text-green-300 hover:underline text-xs sm:text-sm font-mono flex items-center gap-1.5 sm:gap-2 break-all"
                     >
-                      <Mail className="h-4 w-4" />
-                      {candidate.email}
+                      <Mail className="h-3.5 w-3.5 sm:h-4 sm:w-4 flex-shrink-0" />
+                      <span className="break-all">{candidate.email}</span>
                     </a>
                     {candidate.email_confidence && (
-                      <p className="text-xs text-slate-400 mt-1">
+                      <p className="text-xs text-slate-400 mt-1.5">
                         Confidence: {candidate.email_confidence}%
                       </p>
                     )}
@@ -532,10 +532,11 @@ function renderEmailLookupResults(
                   <Button
                     size="sm"
                     onClick={() => onGenerateEmail(candidate)}
-                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg flex items-center gap-2 shrink-0"
+                    className="bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg flex items-center gap-1.5 sm:gap-2 shrink-0 w-full sm:w-auto justify-center sm:justify-start"
                   >
-                    <Send className="h-3 w-3" />
-                    <span className="text-xs">Generate Email</span>
+                    <Send className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+                    <span className="text-xs sm:inline hidden">Generate</span>
+                    <span className="text-xs sm:hidden">Generate Email</span>
                   </Button>
                 </div>
               </div>
@@ -546,10 +547,10 @@ function renderEmailLookupResults(
 
       {/* Candidates without Emails */}
       {candidatesWithoutEmails.length > 0 && (
-        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-4">
+        <div className="bg-slate-800/30 border border-slate-700/50 rounded-lg p-3 sm:p-4">
           <div className="flex items-center gap-2 mb-3">
-            <MailX className="h-5 w-5 text-slate-400" />
-            <h4 className="text-base font-semibold text-slate-100">
+            <MailX className="h-4 w-4 sm:h-5 sm:w-5 text-slate-400 flex-shrink-0" />
+            <h4 className="text-sm sm:text-base font-semibold text-slate-100">
               No Email Found
             </h4>
           </div>
@@ -557,14 +558,14 @@ function renderEmailLookupResults(
             {candidatesWithoutEmails.map((candidate: CandidateData, idx: number) => (
               <div
                 key={candidate.id || idx}
-                className="bg-slate-900/50 border border-slate-700/30 rounded-lg p-3"
+                className="bg-slate-900/50 border border-slate-700/30 rounded-lg p-2.5 sm:p-3"
               >
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-slate-300">
+                <div className="flex flex-wrap items-center gap-1.5 sm:gap-2">
+                  <span className="font-medium text-slate-300 text-sm sm:text-base truncate">
                     {candidate.name || candidate.github_username || 'Unknown'}
                   </span>
                   {candidate.github_username && (
-                    <span className="text-xs text-slate-400">@{candidate.github_username}</span>
+                    <span className="text-xs text-slate-400 truncate">@{candidate.github_username}</span>
                   )}
                   <span className="text-xs text-slate-500 ml-auto">No email found</span>
                 </div>

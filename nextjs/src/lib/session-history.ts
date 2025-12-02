@@ -322,6 +322,98 @@ export class AdkSessionService {
   }
 
   /**
+   * Deletes a specific session
+   */
+  static async deleteSession(
+    userId: string,
+    sessionId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    const appName = getAdkAppName();
+
+    if (shouldUseAgentEngine()) {
+      // Agent Engine: Use v1beta1 sessions API
+      const endpoint = getEndpointForPath(`/${sessionId}`, "sessions");
+
+      try {
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(endpoint, {
+          method: "DELETE",
+          headers: {
+            ...authHeaders,
+          },
+        });
+
+        if (response.status === 404) {
+          return {
+            success: false,
+            error: "Session not found",
+          };
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Failed to delete session: ${response.statusText} ${errorText}`
+          );
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error(
+          "❌ [ADK SESSION SERVICE] Agent Engine deleteSession error:",
+          error
+        );
+        return {
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Failed to delete session",
+        };
+      }
+    } else {
+      // Local Backend: DELETE with path
+      const endpoint = getEndpointForPath(
+        `/apps/${appName}/users/${userId}/sessions/${sessionId}`
+      );
+
+      try {
+        const authHeaders = await getAuthHeaders();
+        const response = await fetch(endpoint, {
+          method: "DELETE",
+          headers: {
+            ...authHeaders,
+          },
+        });
+
+        if (response.status === 404) {
+          return {
+            success: false,
+            error: "Session not found",
+          };
+        }
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(
+            `Failed to delete session: ${response.statusText} ${errorText}`
+          );
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error(
+          "❌ [ADK SESSION SERVICE] Local Backend deleteSession error:",
+          error
+        );
+        return {
+          success: false,
+          error:
+            error instanceof Error ? error.message : "Failed to delete session",
+        };
+      }
+    }
+  }
+
+  /**
    * Retrieves a session with all its events (for historical context)
    */
   static async getSessionWithEvents(
@@ -388,4 +480,11 @@ export async function listUserSessions(
   userId: string
 ): Promise<ListSessionsResponse> {
   return await AdkSessionService.listSessions(userId);
+}
+
+export async function deleteUserSession(
+  userId: string,
+  sessionId: string
+): Promise<{ success: boolean; error?: string }> {
+  return await AdkSessionService.deleteSession(userId, sessionId);
 }

@@ -21,13 +21,13 @@ const QUICK_LINKS: Array<{ label: string; url: string; icon: React.ReactNode }> 
       icon: <LinkIcon className="h-3.5 w-3.5" />,
     },
     {
-      label: "LinkedIn Jobs",
-      url: "https://www.linkedin.com/jobs/",
+      label: "Gmail",
+      url: "https://mail.google.com/",
       icon: <Globe className="h-3.5 w-3.5" />,
     },
     {
-      label: "GitHub",
-      url: "https://github.com/",
+      label: "Indeed",
+      url: "https://www.indeed.com/",
       icon: <Globe className="h-3.5 w-3.5" />,
     },
   ];

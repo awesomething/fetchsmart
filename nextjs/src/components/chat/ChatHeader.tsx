@@ -24,7 +24,7 @@ export function ChatHeader(): React.JSX.Element {
   } = useChatContext();
 
   const [containerRef, containerWidth] = useContainerWidth<HTMLDivElement>();
-  
+
   // Stack when container width is less than 600px (when right pane is dragged narrow)
   const shouldStack = containerWidth > 0 && containerWidth < 600;
 
@@ -59,15 +59,6 @@ export function ChatHeader(): React.JSX.Element {
             ? 'gap-2 flex-wrap w-full justify-start'
             : 'gap-2 sm:gap-4 flex-wrap sm:flex-nowrap w-full sm:w-auto justify-end'
         }`}>
-          {/* Recruiter Hub Link */}
-          {/* <Link
-            href="/recruiter"
-            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-slate-300 hover:text-slate-100 hover:bg-slate-700/50 rounded-md transition-colors"
-          >
-            <Briefcase className="h-4 w-4" />
-            <span>Recruiter Hub</span>
-          </Link> */}
-
           {!shouldStack && (
             <div className="hidden sm:block sm:mr-3">
               <FloatingWindowMenu />

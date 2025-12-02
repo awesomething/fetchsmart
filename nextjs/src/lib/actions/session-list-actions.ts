@@ -1,6 +1,6 @@
 "use server";
 
-import { listUserSessions, getSessionWithEvents } from "@/lib/session-history";
+import { listUserSessions, getSessionWithEvents, deleteUserSession } from "@/lib/session-history";
 
 /**
  * Server Action for fetching user's active sessions from ADK backend
@@ -88,6 +88,49 @@ export async function fetchActiveSessionsAction(
       success: false,
       sessions: [],
       error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+}
+
+export interface SessionDeleteResult {
+  success: boolean;
+  error?: string;
+}
+
+/**
+ * Server Action for deleting a session from ADK backend
+ */
+export async function deleteSessionAction(
+  userId: string,
+  sessionId: string
+): Promise<SessionDeleteResult> {
+  try {
+    console.log(
+      `📡 Server Action - Deleting session ${sessionId} for userId: ${userId}`
+    );
+
+    const result = await deleteUserSession(userId, sessionId);
+
+    if (result.success) {
+      console.log(
+        `✅ Server Action - Session ${sessionId} deleted successfully`
+      );
+    } else {
+      console.error(
+        `❌ Server Action - Session deletion failed:`,
+        result.error
+      );
+    }
+
+    return result;
+  } catch (error) {
+    console.error("Server Action - Session deletion error:", error);
+
+    return {
+      success: false,
+      error: `Server Action error: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
     };
   }
 }
