@@ -18,7 +18,8 @@ function detectEnvironment(): EndpointConfig["environment"] {
   if (
     process.env.GOOGLE_CLOUD_PROJECT ||
     process.env.K_SERVICE ||
-    process.env.FUNCTION_NAME
+    process.env.FUNCTION_NAME ||
+    process.env.CLOUD_RUN_SERVICE_URL
   ) {
     return "cloud";
   }
@@ -31,13 +32,17 @@ function detectEnvironment(): EndpointConfig["environment"] {
  * Detects the deployment type based on environment variables
  */
 function detectDeploymentType(): EndpointConfig["deploymentType"] {
-  // Check for Agent Engine deployment (only use endpoint)
-  if (process.env.AGENT_ENGINE_ENDPOINT) {
+  // Check for Agent Engine deployment (explicit endpoint or reasoning engine ID)
+  if (getAgentEngineEndpoint()) {
     return "agent_engine";
   }
 
   // Check for Cloud Run deployment
-  if (process.env.K_SERVICE || process.env.CLOUD_RUN_SERVICE) {
+  if (
+    process.env.K_SERVICE ||
+    process.env.CLOUD_RUN_SERVICE ||
+    process.env.CLOUD_RUN_SERVICE_URL
+  ) {
     return "cloud_run";
   }
 
@@ -52,14 +57,16 @@ function getBackendUrl(): string {
   const deploymentType = detectDeploymentType();
 
   switch (deploymentType) {
-    case "agent_engine":
-      // Agent Engine endpoint - only use the specific endpoint
-      if (process.env.AGENT_ENGINE_ENDPOINT) {
-        return process.env.AGENT_ENGINE_ENDPOINT;
+    case "agent_engine": {
+      const endpoint = getAgentEngineEndpoint();
+      if (endpoint) {
+        return endpoint;
       }
+
       throw new Error(
-        "AGENT_ENGINE_ENDPOINT environment variable is required for Agent Engine deployment"
+        "AGENT_ENGINE_ENDPOINT or REASONING_ENGINE_ID is required for Agent Engine deployment"
       );
+    }
 
     case "cloud_run":
       // Cloud Run deployment - use the service URL
@@ -81,9 +88,22 @@ function getBackendUrl(): string {
 /**
  * Gets the Agent Engine URL for direct Agent Engine API calls
  */
-function getAgentEngineUrl(): string | undefined {
-  // Only use the direct endpoint, no more individual env var construction
-  return process.env.AGENT_ENGINE_ENDPOINT || undefined;
+function getAgentEngineEndpoint(): string | undefined {
+  // Prefer explicit endpoint if provided
+  if (process.env.AGENT_ENGINE_ENDPOINT) {
+    return process.env.AGENT_ENGINE_ENDPOINT;
+  }
+
+  // Build endpoint from REASONING_ENGINE_ID + project/location
+  const reasoningEngineId = process.env.REASONING_ENGINE_ID;
+  const projectId = process.env.GOOGLE_CLOUD_PROJECT;
+  const location = process.env.GOOGLE_CLOUD_LOCATION || "us-central1";
+
+  if (reasoningEngineId && projectId) {
+    return `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/reasoningEngines/${reasoningEngineId}`;
+  }
+
+  return undefined;
 }
 
 /**
@@ -95,7 +115,7 @@ export function createEndpointConfig(): EndpointConfig {
 
   const config: EndpointConfig = {
     backendUrl: getBackendUrl(),
-    agentEngineUrl: getAgentEngineUrl(),
+    agentEngineUrl: getAgentEngineEndpoint(),
     environment,
     deploymentType,
   };

@@ -223,6 +223,14 @@ export function MessageItem({
           <MarkdownRenderer content={message.content} />
         </div>
 
+        {/* Keep a visible loading hint even while content is streaming */}
+        {isLoading && (
+          <div className="mt-3 flex items-center gap-2 bg-slate-800/50 border border-slate-700/50 rounded-lg px-3 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-400" />
+            <span className="text-sm text-slate-400">Thinking and planning...</span>
+          </div>
+        )}
+
         {/* Copy button */}
         {onCopy && (
           <button
