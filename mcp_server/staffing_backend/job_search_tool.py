@@ -1,10 +1,10 @@
 """
-Job Search Tool - Query job openings from Supabase with JSearch API fallback.
+Job Search Tool - Query job openings from JSearch API with Supabase fallback.
 Equivalent to inventory analysis in supply chain.
 
 Fallback Strategy:
-1. Try Supabase first (primary data source)
-2. If Supabase fails or returns no results, fall back to JSearch API
+1. Try JSearch API first (primary data source)
+2. If JSearch API fails or returns no results, fall back to Supabase
 3. Normalize JSearch results to match Supabase schema format
 """
 from supabase import create_client, Client
@@ -15,33 +15,46 @@ from typing import Optional, List, Dict
 
 class JobSearchTool:
     def __init__(self):
-        # Initialize Supabase client
-        supabase_url = os.getenv("SUPABASE_URL")
-        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Allow server to start even if Supabase is not configured
-        # Tools will use JSearch API fallback
-        if supabase_url and supabase_key:
-            try:
-                self.supabase: Client = create_client(supabase_url, supabase_key)
-                self.supabase_enabled = True
-            except Exception as e:
-                print(f"[WARNING] Supabase initialization failed: {e}")
-                print("[INFO] Server will continue with JSearch API fallback only")
-                self.supabase_enabled = False
-                self.supabase = None
-        else:
-            print("[INFO] Supabase credentials not set. Using JSearch API fallback only.")
-            self.supabase_enabled = False
-            self.supabase = None
-        
-        # Initialize JSearch API credentials (fallback)
+        # PRIORITY 1: Initialize JSearch API credentials (primary data source)
         self.jsearch_host = os.getenv("JSEARCH_HOST", "jsearch.p.rapidapi.com")
         self.jsearch_api_key = os.getenv("JSEARCHRAPDKEY")
         self.jsearch_enabled = bool(self.jsearch_api_key)
         
-        if not self.supabase_enabled and not self.jsearch_enabled:
-            raise ValueError("Either SUPABASE_URL/SUPABASE_SERVICE_KEY or JSEARCHRAPDKEY must be configured")
+        if self.jsearch_enabled:
+            logger.info(f"[JobSearchTool] ✅ JSearch API enabled (key length: {len(self.jsearch_api_key)})")
+        else:
+            logger.warning(f"[JobSearchTool] ⚠️  JSearch API disabled: JSEARCHRAPDKEY not set")
+        
+        # PRIORITY 2: Initialize Supabase client (fallback)
+        supabase_url = os.getenv("SUPABASE_URL")
+        supabase_key = os.getenv("SUPABASE_SERVICE_KEY")
+        
+        # Allow server to start even if Supabase is not configured
+        # Tools will use JSearch API as primary source
+        if supabase_url and supabase_key:
+            try:
+                self.supabase: Client = create_client(supabase_url, supabase_key)
+                self.supabase_enabled = True
+                logger.info(f"[JobSearchTool] ✅ Supabase enabled (fallback)")
+            except Exception as e:
+                logger.warning(f"[JobSearchTool] ⚠️  Supabase initialization failed: {e}")
+                logger.info("[JobSearchTool] Server will continue with JSearch API only")
+                self.supabase_enabled = False
+                self.supabase = None
+        else:
+            logger.info("[JobSearchTool] Supabase credentials not set. Using JSearch API only.")
+            self.supabase_enabled = False
+            self.supabase = None
+        
+        if not self.jsearch_enabled and not self.supabase_enabled:
+            error_msg = "CRITICAL: Neither JSEARCHRAPDKEY nor SUPABASE_URL/SUPABASE_SERVICE_KEY is configured. At least one must be set."
+            logger.error(f"[JobSearchTool] ❌ {error_msg}")
+            raise ValueError(error_msg)
+        
+        logger.info(f"[JobSearchTool] Initialization complete: JSearch={self.jsearch_enabled}, Supabase={self.supabase_enabled}")
     
     def search_jobs(
         self,
@@ -53,7 +66,7 @@ class JobSearchTool:
         limit: int = 10
     ) -> str:
         """
-        Search job openings from Supabase with JSearch API fallback.
+        Search job openings from JSearch API with Supabase fallback.
         
         Args:
             job_title: Search term in job title (partial match)
@@ -66,44 +79,109 @@ class JobSearchTool:
         Returns:
             JSON string with matching job openings
         """
-        # Try Supabase first (primary data source)
-        if self.supabase_enabled:
-            try:
-                result = self._search_supabase(
-                    job_title, location, min_salary, max_salary, remote_only, limit
-                )
-                
-                # If Supabase returns results, use them
-                if result and result.get("total_jobs", 0) > 0:
-                    result["data_source"] = "supabase"
-                    return json.dumps(result)
-                
-                # If Supabase returns no results but didn't error, still try fallback
-                # (in case database is paused but connection works)
-                print("⚠️  Supabase returned no results, trying JSearch API fallback...")
-                
-            except Exception as e:
-                print(f"⚠️  Supabase query failed: {e}, trying JSearch API fallback...")
+        import logging
+        logger = logging.getLogger(__name__)
         
-        # Fallback to JSearch API
+        logger.info(f"[JobSearchTool] Starting job search: title='{job_title}', location='{location}', limit={limit}")
+        logger.info(f"[JobSearchTool] JSearch enabled: {self.jsearch_enabled}, Supabase enabled: {self.supabase_enabled}")
+        
+        # PRIORITY 1: Try JSearch API first (primary data source)
         if self.jsearch_enabled:
             try:
+                logger.info(f"[JobSearchTool] Attempting JSearch API search...")
                 result = self._search_jsearch_api(
                     job_title, location, min_salary, max_salary, remote_only, limit
                 )
-                if result:
+                
+                # If JSearch API returns results, use them immediately
+                if result and result.get("total_jobs", 0) > 0:
                     result["data_source"] = "jsearch_api"
+                    logger.info(f"[JobSearchTool] ✅ JSearch API success: {result.get('total_jobs')} jobs found")
                     return json.dumps(result)
+                
+                # If JSearch API returns no results but didn't error, still try fallback
+                logger.warning(f"[JobSearchTool] ⚠️  JSearch API returned 0 results, trying Supabase fallback...")
+                
             except Exception as e:
-                print(f"❌ JSearch API fallback also failed: {e}")
+                logger.error(f"[JobSearchTool] ❌ JSearch API query failed: {e}", exc_info=True)
+                logger.info(f"[JobSearchTool] Attempting Supabase fallback...")
         
-        # Both sources failed
-        return json.dumps({
+        # PRIORITY 2: Fallback to Supabase
+        if self.supabase_enabled:
+            try:
+                logger.info(f"[JobSearchTool] Attempting Supabase search...")
+                result = self._search_supabase(
+                    job_title, location, min_salary, max_salary, remote_only, limit
+                )
+                if result and result.get("total_jobs", 0) > 0:
+                    result["data_source"] = "supabase"
+                    logger.info(f"[JobSearchTool] ✅ Supabase fallback success: {result.get('total_jobs')} jobs found")
+                    return json.dumps(result)
+                else:
+                    logger.warning(f"[JobSearchTool] ⚠️  Supabase returned 0 results")
+            except Exception as e:
+                error_msg = str(e)
+                logger.error(f"[JobSearchTool] ❌ Supabase fallback also failed: {error_msg}", exc_info=True)
+                # Log specific error types for better debugging
+                if "RLS" in error_msg or "row-level security" in error_msg.lower():
+                    logger.error("[JobSearchTool] Supabase RLS policy violation - check service key permissions")
+                elif "connection" in error_msg.lower() or "timeout" in error_msg.lower():
+                    logger.error("[JobSearchTool] Supabase connection error - check SUPABASE_URL")
+                elif "authentication" in error_msg.lower() or "401" in error_msg or "403" in error_msg:
+                    logger.error("[JobSearchTool] Supabase authentication error - check SUPABASE_SERVICE_KEY")
+        
+        # Both sources failed or returned no results
+        error_details = []
+        if not self.jsearch_enabled:
+            error_details.append("JSEARCHRAPDKEY not configured")
+        if not self.supabase_enabled:
+            error_details.append("SUPABASE_URL or SUPABASE_SERVICE_KEY not configured")
+        if self.jsearch_enabled and self.supabase_enabled:
+            error_details.append("Both JSearch API and Supabase returned no results or encountered errors")
+        
+        error_msg = "Job search failed. " + "; ".join(error_details) if error_details else "No job search services available."
+        logger.error(f"[JobSearchTool] ❌ {error_msg}")
+        
+        # Create a detailed error response that the agent can easily parse
+        error_response = {
             "status": "error",
-            "message": "Both Supabase and JSearch API failed. Please check your configuration.",
+            "message": error_msg,
             "total_jobs": 0,
-            "jobs": []
-        })
+            "jobs": [],
+            "error_type": "JobSearchError",
+            "error_details": {
+                "jsearch_enabled": self.jsearch_enabled,
+                "supabase_enabled": self.supabase_enabled,
+                "job_title": job_title or "N/A",
+                "location": location or "N/A",
+                "suggestions": []
+            }
+        }
+        
+        # Add actionable suggestions based on what's missing
+        if not self.jsearch_enabled and not self.supabase_enabled:
+            error_response["error_details"]["suggestions"] = [
+                "Set JSEARCHRAPDKEY environment variable for JSearch API access, OR",
+                "Set SUPABASE_URL and SUPABASE_SERVICE_KEY for Supabase database access"
+            ]
+        elif not self.jsearch_enabled:
+            error_response["error_details"]["suggestions"] = [
+                "JSearch API is not configured. Set JSEARCHRAPDKEY environment variable.",
+                "Currently using Supabase only, which may have limited job listings."
+            ]
+        elif not self.supabase_enabled:
+            error_response["error_details"]["suggestions"] = [
+                "Supabase is not configured. Set SUPABASE_URL and SUPABASE_SERVICE_KEY.",
+                "Currently using JSearch API only, which may have rate limits."
+            ]
+        else:
+            error_response["error_details"]["suggestions"] = [
+                "Both services are configured but returned no results.",
+                "Check Cloud Run logs for detailed error messages from JSearch API or Supabase.",
+                "Verify that the search query parameters are correct."
+            ]
+        
+        return json.dumps(error_response, indent=2)
     
     def _search_supabase(
         self,
@@ -196,20 +274,46 @@ class JobSearchTool:
         remote_only: bool = False,
         limit: int = 10
     ) -> Optional[Dict]:
-        """Search jobs using JSearch API (RapidAPI) as fallback."""
+        """Search jobs using JSearch API (RapidAPI) as primary data source."""
+        import logging
+        logger = logging.getLogger(__name__)
+        
         try:
+            if not self.jsearch_api_key:
+                raise ValueError("JSEARCHRAPDKEY is not configured")
+            
             # Build JSearch API query parameters
+            # Use a sensible default if no job title provided
+            search_query = job_title or "software engineer"
             query_params = {
-                "query": job_title or "jobs",
+                "query": search_query,
                 "page": "1",
                 "num_pages": "1"
             }
+            logger.info(f"[JobSearchTool] JSearch API query: '{search_query}'")
             
             # Add location filter (empty string means no location filter)
+            # Normalize common location formats for JSearch API
             if location and location.strip():
-                query_params["location"] = location
+                # Normalize location names
+                location_normalized = location.strip()
+                # Map common abbreviations to full names
+                location_map = {
+                    "u.s.": "United States",
+                    "us": "United States",
+                    "usa": "United States",
+                    "u.s.a.": "United States",
+                    "united states": "United States"
+                }
+                location_lower = location_normalized.lower()
+                if location_lower in location_map:
+                    location_normalized = location_map[location_lower]
+                
+                query_params["location"] = location_normalized
+                logger.info(f"[JobSearchTool] Using location: '{location_normalized}' (normalized from '{location}')")
             elif remote_only:
                 query_params["remote_jobs_only"] = "true"
+                logger.info(f"[JobSearchTool] Searching for remote jobs only")
             
             # Add salary filters (JSearch uses salary_min and salary_max)
             if min_salary:
@@ -224,17 +328,52 @@ class JobSearchTool:
                 "X-RapidAPI-Host": self.jsearch_host
             }
             
-            response = requests.get(url, headers=headers, params=query_params, timeout=10)
+            logger.info(f"[JobSearchTool] Calling JSearch API: {url} with query='{query_params.get('query')}', location='{query_params.get('location', 'N/A')}'")
+            
+            response = requests.get(url, headers=headers, params=query_params, timeout=15)
+            
+            # Log response status
+            logger.info(f"[JobSearchTool] JSearch API response status: {response.status_code}")
+            
+            # Handle different HTTP status codes
+            if response.status_code == 401:
+                raise Exception("JSearch API authentication failed. Check JSEARCHRAPDKEY.")
+            elif response.status_code == 429:
+                raise Exception("JSearch API rate limit exceeded. Please try again later.")
+            elif response.status_code == 403:
+                raise Exception("JSearch API access forbidden. Check API key permissions.")
+            
             response.raise_for_status()
             
             data = response.json()
             
+            # Check if API returned data
+            if not data or "data" not in data:
+                logger.warning(f"[JobSearchTool] JSearch API returned unexpected format: {data}")
+                return {
+                    "status": "success",
+                    "total_jobs": 0,
+                    "jobs": [],
+                    "filters_applied": {
+                        "job_title": job_title,
+                        "location": location,
+                        "remote_only": remote_only,
+                        "min_salary": min_salary,
+                        "max_salary": max_salary
+                    }
+                }
+            
             # Normalize JSearch results to match Supabase schema
             jobs = []
-            for job in data.get("data", [])[:limit]:
+            raw_jobs = data.get("data", [])
+            logger.info(f"[JobSearchTool] JSearch API returned {len(raw_jobs)} raw jobs, normalizing...")
+            
+            for job in raw_jobs[:limit]:
                 normalized_job = self._normalize_jsearch_result(job)
                 if normalized_job:
                     jobs.append(normalized_job)
+            
+            logger.info(f"[JobSearchTool] Successfully normalized {len(jobs)} jobs from JSearch API")
             
             return {
                 "status": "success",
@@ -249,6 +388,12 @@ class JobSearchTool:
                 }
             }
             
+        except requests.exceptions.Timeout:
+            raise Exception("JSearch API request timed out. The service may be slow or unavailable.")
+        except requests.exceptions.ConnectionError:
+            raise Exception("JSearch API connection failed. Check your internet connection.")
+        except requests.exceptions.HTTPError as e:
+            raise Exception(f"JSearch API HTTP error ({e.response.status_code}): {str(e)}")
         except requests.exceptions.RequestException as e:
             raise Exception(f"JSearch API request failed: {str(e)}")
         except Exception as e:

@@ -178,14 +178,43 @@ function handleSSEParsingError(data: string, error: unknown): ParsedSSEData {
     // Handle double-escaped JSON strings (common in error responses)
     let cleanedData: string | Record<string, unknown> = data.trim();
     
-    // Remove outer quotes if present (e.g., " "{\"error\": ...}" ")
-    if (cleanedData.startsWith('"') && cleanedData.endsWith('"')) {
+    // Handle multiple layers of quote wrapping (e.g., ""{\"error\": ...}"")
+    // Keep removing outer quotes until we can parse or run out of quotes
+    let maxUnwrapAttempts = 3;
+    while (maxUnwrapAttempts > 0 && typeof cleanedData === 'string') {
+      if (cleanedData.startsWith('"') && cleanedData.endsWith('"')) {
+        try {
+          const parsed = JSON.parse(cleanedData);
+          // If it parsed to a string, unwrap it
+          if (typeof parsed === 'string') {
+            cleanedData = parsed;
+            maxUnwrapAttempts--;
+            continue;
+          } else {
+            // If it parsed to an object, we're done
+            cleanedData = parsed;
+            break;
+          }
+        } catch {
+          // If parse fails, try removing just the outer quotes
+          if (typeof cleanedData === 'string') {
+            cleanedData = cleanedData.slice(1, -1);
+          }
+          maxUnwrapAttempts--;
+        }
+      } else {
+        // No more quotes to remove
+        break;
+      }
+    }
+    
+    // If we still have a string, try to convert it back to string if it was double-stringified
+    if (typeof cleanedData === 'string' && cleanedData.startsWith('{')) {
+      // It might be a JSON string that needs parsing
       try {
-        const parsed = JSON.parse(cleanedData);
-        cleanedData = typeof parsed === 'string' ? parsed : JSON.stringify(parsed);
+        cleanedData = JSON.parse(cleanedData);
       } catch {
-        // If that fails, try removing just the outer quotes
-        cleanedData = cleanedData.slice(1, -1);
+        // If that fails, keep it as is
       }
     }
     
@@ -238,6 +267,28 @@ function handleSSEParsingError(data: string, error: unknown): ParsedSSEData {
             errorMessage = "Agent configuration error: No root_agent found. Check AGENT_NAME in app/.env matches your directory structure.";
           }
         }
+        
+        // If we still haven't found an error message, try to extract partial error info
+        // Handle cases where JSON is truncated or malformed
+        if (errorMessage === "Failed to parse server response. Please try again.") {
+          // Look for partial error patterns in malformed JSON (including unterminated strings)
+          const partialErrorMatch = cleanedData.match(/error["\s]*:["\s]*"([^"]*)/i);
+          if (partialErrorMatch && partialErrorMatch[1]) {
+            errorMessage = `Server error: ${partialErrorMatch[1]}`;
+          } else if (cleanedData.includes("error")) {
+            // At least indicate there was an error, even if we can't extract the message
+            errorMessage = "Server returned an error response. Check backend logs for details.";
+          }
+          
+          // Handle unterminated string errors specifically
+          if (cleanedData.includes('"error"') && cleanedData.match(/"[^"]*$/)) {
+            // Try to extract what we can from the unterminated string
+            const unterminatedMatch = cleanedData.match(/"error"\s*:\s*"([^"]*)/i);
+            if (unterminatedMatch && unterminatedMatch[1]) {
+              errorMessage = `Server error (partial): ${unterminatedMatch[1]}`;
+            }
+          }
+        }
       }
     } else if (typeof cleanedData === 'object' && cleanedData !== null) {
       // Already parsed
@@ -257,15 +308,13 @@ function handleSSEParsingError(data: string, error: unknown): ParsedSSEData {
     console.warn("Could not extract error message from malformed JSON:", extractError);
   }
   
-  // Only log the full error details in development
-  if (process.env.NODE_ENV === 'development') {
+  // Always log error details to help with debugging (especially in production)
   console.error(
     'Error parsing SSE data. Raw data (truncated): "',
     truncatedData,
     '". Error details:',
     error
   );
-  }
 
   return {
     messageId: undefined,

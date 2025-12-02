@@ -11,9 +11,9 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copy all recruitment_backend files
 COPY . .
 
-# Expose port 8100 (recruitment backend port)
-EXPOSE 8100
-ENV PORT=8100
+# Expose port 8200 (recruitment backend port - separate from staffing:8100)
+EXPOSE 8200
+ENV PORT=8200
 ENV HOST=0.0.0.0
 
 # Run the recruitment backend server

@@ -48,12 +48,13 @@ def get_recruiter_orchestrator_agent() -> LlmAgent:
     if not sub_agents:
         raise RuntimeError("Failed to create any sub-agents for staffing recruiter orchestrator")
     
-    return LlmAgent(
-        name="StaffingRecruiterOrchestrator",
-        model=config.model,
-        description="Orchestrates recruiter workflow: job search → candidate matching → submission",
-        sub_agents=sub_agents,
-        instruction="""
+    try:
+        return LlmAgent(
+            name="StaffingRecruiterOrchestrator",
+            model=config.model,
+            description="Orchestrates recruiter workflow: job search → candidate matching → submission",
+            sub_agents=sub_agents,
+            instruction="""
 You coordinate the recruiter workflow through specialized agents:
 
 1. Job Search: Find open positions matching requirements
@@ -89,23 +90,33 @@ You coordinate the recruiter workflow through specialized agents:
 Always maintain context about job requirements, candidate profiles, and submission status.
 Focus on finding the best candidate-job fit to maximize placement success.
 """,
-        output_key="recruiter_workflow_result",
-    )
+            output_key="recruiter_workflow_result",
+        )
+    except Exception as e:
+        logger.error(f"[ERROR] Failed to initialize recruiter orchestrator: {e}")
+        import traceback
+        logger.error(f"[ERROR] Full traceback: {traceback.format_exc()}")
+        # Return a minimal agent that will at least not crash
+        return LlmAgent(
+            name="StaffingRecruiterOrchestrator",
+            model=config.model,
+            description="Recruiter orchestrator (initialization failed - check logs)",
+            instruction=f"The recruiter orchestrator failed to initialize. Error: {str(e)}. Please check the backend logs for details.",
+            output_key="recruiter_workflow_result",
+        )
+
+# Lazy initialization - only create when actually needed
+# This prevents import-time failures when MCP servers aren't available
+def _get_staffing_recruiter_agent():
+    """Lazy getter for staffing recruiter agent."""
+    return get_recruiter_orchestrator_agent()
 
 # Create at module level for backward compatibility, but with error handling
-# This allows the agent to be imported even if initialization fails
 try:
     recruiter_orchestrator_agent = get_recruiter_orchestrator_agent()
-    logger.info("✅ Staffing recruiter orchestrator agent initialized successfully")
 except Exception as e:
     logger.warning(f"⚠️  Failed to initialize staffing recruiter agent at import time: {e}")
-    logger.warning("⚠️  This is OK - agent will work with available sub-agents when deployed")
-    # Create a minimal placeholder agent that won't crash
-    recruiter_orchestrator_agent = LlmAgent(
-        name="StaffingRecruiterOrchestrator",
-        model=config.model,
-        description="Staffing recruiter orchestrator (some sub-agents unavailable)",
-        instruction="The staffing recruiter orchestrator is partially initialized. Some features may be limited.",
-        output_key="recruiter_workflow_result",
-    )
+    logger.warning("⚠️  Agent will be created lazily when needed")
+    # Create a placeholder that will be replaced when actually used
+    recruiter_orchestrator_agent = None
 

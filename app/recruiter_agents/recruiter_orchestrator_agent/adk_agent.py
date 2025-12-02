@@ -1,6 +1,7 @@
 """
 Recruiter Orchestrator Agent for ADK integration.
 Export the agent for use in the root agent.
+Updated: Force cache refresh for deployment.
 """
 
 import json
@@ -148,17 +149,29 @@ recruitment_mcp_url = os.getenv("RECRUITMENT_MCP_SERVER_URL") or os.getenv("MCP_
 recruitment_mcp_toolset = None
 
 if recruitment_mcp_url:
+    # Ensure /mcp endpoint path is included (migrated from A2A to FastMCP)
+    if not recruitment_mcp_url.endswith('/mcp'):
+        recruitment_mcp_url = f"{recruitment_mcp_url.rstrip('/')}/mcp"
+
     print(f"[INFO] Attempting to connect to recruitment MCP backend: {recruitment_mcp_url}")
     try:
         # Use MCP server via HTTP (production)
-        # Note: Recruitment backend uses A2A protocol but exposes MCP tools
-        # Use base URL (no /mcp path) as per deployment docs
+        # Note: Recruitment backend now uses FastMCP (migrated from A2A)
+        # Use /mcp endpoint path (required for FastMCP compatibility)
+        # IMPORTANT: Include ALL email lookup tools from MCP server
         recruitment_mcp_toolset = MCPToolset(
             connection_params=StreamableHTTPConnectionParams(url=recruitment_mcp_url),
-            tool_filter=["search_candidates_tool"]
+            tool_filter=[
+                "search_candidates_tool",
+                "find_candidate_emails_tool",
+                "find_emails_by_github_usernames_tool"
+            ]
         )
         print(f"[OK] ✅ MCP recruitment backend configured successfully: {recruitment_mcp_url}")
-        print(f"[OK] ✅ search_candidates_tool will be available via MCP")
+        print(f"[OK] ✅ MCP tools available:")
+        print(f"[OK]    - search_candidates_tool")
+        print(f"[OK]    - find_candidate_emails_tool")
+        print(f"[OK]    - find_emails_by_github_usernames_tool")
     except Exception as e:
         import traceback
         print(f"[ERROR] ❌ Failed to initialize MCP recruitment backend: {e}")
@@ -570,17 +583,25 @@ def find_emails_by_github_usernames_tool(github_usernames: str) -> str:
     return json.dumps(response, indent=2)
 
 # Build tools list
-tools_list = [find_candidate_emails_tool, find_emails_by_github_usernames_tool]
-
-# Add search_candidates_tool: use MCP if available, otherwise local function
+# CRITICAL: When MCP server is available, use ALL tools from MCP server
+# (they have access to the github_profiles_100.json dataset)
+# When MCP is not available, use local tools
 if recruitment_mcp_toolset:
-    # Use MCP toolset (exposes search_candidates_tool from MCP server)
-    tools_list.append(recruitment_mcp_toolset)
-    print("[INFO] Using MCP toolset for search_candidates_tool (production)")
+    # Use MCP toolset (exposes ALL tools from MCP server)
+    # The MCP server has access to github_profiles_100.json and HUNTER_API_KEY
+    tools_list = [recruitment_mcp_toolset]
+    print("[INFO] Using MCP toolset for ALL recruitment tools (production)")
+    print("[INFO] MCP server has access to:")
+    print("[INFO]   - github_profiles_100.json (100 real GitHub profiles)")
+    print("[INFO]   - HUNTER_API_KEY for email lookup")
 else:
-    # Use local function (local development)
-    tools_list.append(search_candidates_tool)
-    print("[INFO] Using local search_candidates_tool (local development)")
+    # Use local functions (local development)
+    tools_list = [
+        search_candidates_tool,
+        find_candidate_emails_tool,
+        find_emails_by_github_usernames_tool
+    ]
+    print("[INFO] Using local tools (local development)")
 
 print("[INFO] ========================================")
 print("[INFO] Recruiter Orchestrator Agent Setup")
@@ -588,10 +609,12 @@ print("[INFO] ========================================")
 print("[INFO] Tools registered:")
 if recruitment_mcp_toolset:
     print("  - search_candidates_tool: [OK] (MCP server)")
+    print("  - find_candidate_emails_tool: [OK] (MCP server)")
+    print("  - find_emails_by_github_usernames_tool: [OK] (MCP server)")
 else:
     print("  - search_candidates_tool: [OK] (local)")
-print("  - find_candidate_emails_tool: [OK] (local Hunter API)")
-print("  - find_emails_by_github_usernames_tool: [OK] (local Hunter API)")
+    print("  - find_candidate_emails_tool: [OK] (local Hunter API)")
+    print("  - find_emails_by_github_usernames_tool: [OK] (local Hunter API)")
 print(f"[INFO] Total tools in list: {len(tools_list)}")
 print("[INFO] ========================================")
 
@@ -637,16 +660,18 @@ recruiter_orchestrator_agent = LlmAgent(
        )
        ```
     
-    3. **CRITICAL**: The tool returns JSON with candidate data. You MUST return ONLY the raw JSON 
-       response from the tool - DO NOT add any commentary, formatting, or additional text.
-       Just return the exact JSON string you receive from the tool.
-    
+    3. **CRITICAL**: After calling the tool, you MUST provide BOTH:
+       a) A brief human-readable summary (2-3 sentences)
+       b) The complete JSON response from the tool (embedded in a code block)
+
     **Response Format After Using Tool:**
-    
-    Return ONLY the raw JSON from search_candidates_tool, nothing else.
-    The frontend will automatically parse and display the candidates in a beautiful card layout.
-    
-    Example response (return EXACTLY what the tool gives you):
+
+    First, provide a brief summary of what you found, then include the JSON data.
+
+    Example response format:
+    ```
+    I found 5 senior React developers matching your requirements. Here are the top candidates with their GitHub profiles and match scores.
+
     ```json
     {
       "query": "React developer",
@@ -657,17 +682,15 @@ recruiter_orchestrator_agent = LlmAgent(
       "top_candidates": [...]
     }
     ```
-    
-    DO NOT add:
-    - "Here are the results..."
-    - "I found X candidates..."
-    - Match summaries or explanations
-    - Next steps or recommendations
-    
-    The frontend handles all the presentation. Your job is to:
-    1. Call the tool with the right parameters
-    2. Return the JSON response immediately
-    3. Nothing else!
+    ```
+
+    **Summary Guidelines:**
+    - Keep it brief (2-3 sentences max)
+    - Mention the number of candidates found
+    - Highlight key match criteria or notable findings
+    - Be conversational and helpful
+
+    Then include the full JSON response in a code block so the frontend can parse and display it.
     
     **Email Lookup - TWO DISTINCT SCENARIOS:**
     
@@ -703,8 +726,10 @@ recruiter_orchestrator_agent = LlmAgent(
     # Return updated_results JSON with emails - DO NOT return search_results_again!
     ```
     
-    **IMPORTANT**: When returning email lookup results, return ONLY the JSON from `find_candidate_emails_tool`.
-    Do NOT return the original search results. The email lookup tool returns the same structure with email fields added.
+    **IMPORTANT**: When returning email lookup results:
+    1. Provide a brief summary (e.g., "I found email addresses for 3 of 5 candidates.")
+    2. Return the JSON from `find_candidate_emails_tool` in a code block
+    3. Do NOT return the original search results separately
     
     **Scenario 2: Direct Username Email Lookup (TESTING/UTILITY ONLY)**
     
@@ -715,7 +740,8 @@ recruiter_orchestrator_agent = LlmAgent(
     1. Extract the GitHub usernames from the user's request (comma-separated list)
     2. Call `find_emails_by_github_usernames_tool` immediately with the usernames
        Example: `find_emails_by_github_usernames_tool("Rowens72, Mithonmasud, Marquish, Ekeneakubue")`
-    3. Return ONLY the JSON response from the tool - it will include email fields for each candidate
+    3. Provide a brief summary of the results (e.g., "Found email addresses for 4 GitHub users.")
+    4. Return the JSON response from the tool in a code block - it will include email fields for each candidate
     
     **DO NOT**:
     - Call `search_candidates_tool` first (this tool works independently)
@@ -737,8 +763,10 @@ recruiter_orchestrator_agent = LlmAgent(
     - `email`: The found email address (or null if not found)
     - `email_confidence`: Confidence score 0-100 (or null)
     - `email_source`: "github_profile" or "hunter_api" (or null)
-    
-    Return the updated JSON response with emails included. The frontend will automatically update the candidate cards.
+
+    **Response Format for Email Lookups:**
+    First provide a brief summary, then include the JSON with emails in a code block.
+    The frontend will automatically parse and display the updated candidate cards with email addresses.
     
     **For General Recruiting Questions (without tool):**
     

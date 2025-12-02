@@ -46,3 +46,8 @@ mcp_server/.venv/
 .venv/
 venv/
 **/.venv/
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so

@@ -50,7 +50,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
     
     echo "🧪 Starting local container for testing..."
     echo "   Access at: http://localhost:${TEST_PORT}"
-    echo "   Agent Card: http://localhost:${TEST_PORT}/.well-known/agent-card.json"
+    echo "   MCP Endpoint: http://localhost:${TEST_PORT}/mcp"
     echo "   Press Ctrl+C to stop and continue deployment"
     echo ""
     
@@ -72,12 +72,15 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         if docker ps --filter "id=${CONTAINER_ID}" --format "{{.ID}}" | grep -q .; then
             echo "✅ Container is running"
             
-            # Test endpoint
-            echo "Testing endpoint..."
-            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:${TEST_PORT}/.well-known/agent-card.json || echo "000")
+            # Test MCP endpoint (expects 406 or JSON-RPC error - this is normal for MCP)
+            echo "Testing MCP endpoint..."
+            HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 5 http://localhost:${TEST_PORT}/mcp || echo "000")
             if [ "$HTTP_CODE" = "200" ]; then
-                echo "✅ Endpoint responding (Status: $HTTP_CODE)"
-                curl -s --max-time 5 http://localhost:${TEST_PORT}/.well-known/agent-card.json | head -20
+                echo "✅ MCP endpoint responding (Status: $HTTP_CODE)"
+                curl -s --max-time 5 http://localhost:${TEST_PORT}/mcp | head -20
+            elif [ "$HTTP_CODE" = "406" ] || [ "$HTTP_CODE" = "400" ]; then
+                echo "✅ MCP endpoint is accessible (HTTP: $HTTP_CODE - expected for MCP without proper headers)"
+                echo "   This is normal - MCP requires proper headers from MCPToolset"
             else
                 echo "⚠️  Endpoint test failed (HTTP: $HTTP_CODE)"
             fi
@@ -152,10 +155,10 @@ SERVICE_URL=$(gcloud run services describe ${SERVICE_NAME} \
 
 echo "   ${SERVICE_URL}"
 echo ""
-echo "🔗 A2A Agent Card:"
-echo "   ${SERVICE_URL}/.well-known/agent-card.json"
+echo "🔗 MCP Endpoint:"
+echo "   ${SERVICE_URL}/mcp"
 echo ""
 echo "💡 Set this in your ADK agent environment:"
-echo "   RECRUITMENT_MCP_SERVER_URL=${SERVICE_URL}"
+echo "   RECRUITMENT_MCP_SERVER_URL=${SERVICE_URL}/mcp"
 echo ""
 

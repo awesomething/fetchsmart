@@ -187,7 +187,7 @@ export function InputForm({
                 >
                   <Mail className="h-4 w-4" /> Email Draft
                 </button>
-                <button
+                {/* <button
                   type="button"
                   onClick={() => {
                     setAgentMode("staffing_recruiter");
@@ -198,7 +198,7 @@ export function InputForm({
                   }`}
                 >
                   <DollarSign className="h-4 w-4" /> Job Listing
-                </button>
+                </button> */}
                 <button
                   type="button"
                   onClick={() => {

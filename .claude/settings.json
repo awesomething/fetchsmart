@@ -1,0 +1,15 @@
+{
+    "model": "claude-sonnet-4-5-20250929",
+    "autoApprovalSettings": {
+      "enabled": true,
+      "patterns": [
+        "Read(C:/Users/Honri/**)",
+        "Bash(npm run lint)",
+        "Bash(git log:*)"
+      ]
+    },
+    "statusLine": {
+      "enabled": true,
+      "template": "{{model}} | {{tokens}}"
+    }
+}
