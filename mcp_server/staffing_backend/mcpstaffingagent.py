@@ -69,7 +69,7 @@ async def search_jobs(
     limit: int = 10
 ) -> str:
     """
-    Search job openings from Supabase with JSearch API fallback.
+    Search job openings from JSearch API with Supabase fallback.
     
     Args:
         job_title: Search term in job title (partial match)
@@ -82,18 +82,21 @@ async def search_jobs(
     Returns:
         JSON string with matching job openings
     """
+    logger.info(f"[REQUEST] search_jobs called: job_title={job_title}, location={location}, limit={limit}")
     try:
         if job_search_tool is None:
+            error_msg = "JobSearchTool not initialized. Check server logs for initialization errors."
+            logger.error(f"[ERROR] {error_msg}")
             error_response = {
                 "status": "error",
-                "message": "JobSearchTool not initialized. Check server logs.",
+                "message": error_msg,
                 "total_jobs": 0,
                 "jobs": [],
                 "error_type": "InitializationError"
             }
             return json.dumps(error_response)
         
-        result = job_search_tool.search_jobs(
+        result_str = job_search_tool.search_jobs(
             job_title=job_title,
             location=location,
             min_salary=min_salary,
@@ -101,9 +104,34 @@ async def search_jobs(
             remote_only=remote_only,
             limit=limit
         )
-        return result
+        
+        # Parse result to check status and log detailed error information
+        try:
+            result = json.loads(result_str)
+            if result.get("status") == "error":
+                error_msg = result.get("message", "Unknown error")
+                error_type = result.get("error_type", "UnknownError")
+                error_details = result.get("error_details", {})
+                suggestions = error_details.get("suggestions", [])
+                
+                logger.error(f"[ERROR] search_jobs returned error: {error_msg}")
+                logger.error(f"[ERROR] Error type: {error_type}")
+                logger.error(f"[ERROR] JSearch enabled: {error_details.get('jsearch_enabled', 'unknown')}")
+                logger.error(f"[ERROR] Supabase enabled: {error_details.get('supabase_enabled', 'unknown')}")
+                if suggestions:
+                    logger.error(f"[ERROR] Suggestions: {', '.join(suggestions)}")
+            else:
+                jobs_count = result.get("total_jobs", 0)
+                data_source = result.get("data_source", "unknown")
+                logger.info(f"[SUCCESS] search_jobs completed: {jobs_count} jobs found from {data_source}")
+        except json.JSONDecodeError as e:
+            logger.warning(f"[WARNING] Could not parse search_jobs result as JSON: {e}")
+            logger.warning(f"[WARNING] Raw response: {result_str[:500]}")
+        
+        return result_str
     except Exception as e:
         # Always return a valid JSON string, even on error
+        logger.error(f"[ERROR] search_jobs exception: {e}", exc_info=True)
         error_response = {
             "status": "error",
             "message": f"Job search failed: {str(e)}",
@@ -337,15 +365,15 @@ if __name__ == "__main__":
     print("\n" + "=" * 60)
     print("Starting Staffing MCP Agent Server")
     print("=" * 60)
-    print(f"📍 Server: http://localhost:{PORT}")
-    print(f"🔧 Transport: streamable-http")
-    print(f"📦 Tools: 6 available (search_jobs, create_candidate_submission, get_pipeline_status, get_candidate_resume, update_pipeline_stage, health_check)")
-    print(f"💡 Test with: npx @modelcontextprotocol/inspector python mcpstaffingagent.py")
+    print(f"Server: http://localhost:{PORT}")
+    print(f"Transport: streamable-http")
+    print(f"Tools: 6 available (search_jobs, create_candidate_submission, get_pipeline_status, get_candidate_resume, update_pipeline_stage, health_check)")
+    print(f"Test with: npx @modelcontextprotocol/inspector python mcpstaffingagent.py")
     print("=" * 60 + "\n")
     print(f"[INFO] MCP endpoint will be available at: http://localhost:{PORT}/mcp")
     print(f"[INFO] ADK agents should connect to: http://localhost:{PORT}/mcp")
     print("=" * 60 + "\n")
-    
+
     try:
         print(f"[INFO] Starting FastMCP server on port {PORT}...")
         mcp.run(transport='streamable-http')

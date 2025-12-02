@@ -32,12 +32,12 @@ export function EmptyState(): React.JSX.Element {
       query: "Plan my week for filling 3 Senior React Developer positions",
       mode: "planning" as const
     },
-    {
-      icon: Target,
-      text: "Find software engineer jobs in U.S",
-      query: "Find software engineer jobs in U.S",
-      mode: "staffing_recruiter" as const
-    },
+    // {
+    //   icon: Target,
+    //   text: "Find software engineer jobs in U.S",
+    //   query: "Find software engineer jobs in U.S",
+    //   mode: "staffing_recruiter" as const
+    // },
     {
       icon: BarChart3,
       text: "Review candidate Craig with email info@videobook.ai",

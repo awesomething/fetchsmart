@@ -345,3 +345,119 @@ make dev
   - Routes to StaffingRecruiterOrchestrator ✅
   - Calls the job search tool ✅
   - Streams text results (not just loading) ✅
+  
+  
+11:00pm 
+Summary of Changes
+
+  I've successfully migrated the recruitment backend from A2A protocol to FastMCP, following the migration guide. Here's what was done:
+
+  ---
+  📁 Files Modified:
+
+  1. mcp_server/recruitment_backend/requirements.txt
+  - ❌ Removed: google-adk, a2a-sdk, uvicorn, nest-asyncio
+  - ✅ Added: fastmcp>=0.9.0
+  - ✅ Kept: python-dotenv, requests (for GitHub API, Hunter API)
+
+  2. mcp_server/recruitment_backend/server.py (810 lines → 642 lines)
+  - ❌ Removed: All A2A imports and agent creation code
+  - ✅ Added: FastMCP server initialization
+  - ✅ Converted: All 10 tool functions to @mcp.tool() async functions
+  - ✅ Updated: Server startup to use mcp.run(transport='streamable-http')
+
+  Tools Converted to FastMCP:
+  1. search_candidates_tool ✅
+  2. scrape_github_profiles_tool ✅
+  3. get_compensation_data_tool ✅
+  4. get_pipeline_metrics_tool ✅
+  5. analyze_portfolio_tool ✅
+  6. get_time_tracking_tool ✅
+  7. generate_recruitment_report_tool ✅
+  8. send_recruitment_email_tool ✅
+  9. find_emails_by_github_usernames_tool ✅
+  10. find_candidate_emails_tool ✅
+
+  3. app/recruiter_agents/recruiter_orchestrator_agent/adk_agent.py
+  - ✅ Added: Auto-append /mcp to URL if not present
+  - ✅ Updated: Comments to reflect FastMCP migration
+
+  ---
+  🔧 Key Technical Changes:
+
+  | Aspect            | Before (A2A)                | After (FastMCP)                      |
+  |-------------------|-----------------------------|--------------------------------------|
+  | Protocol          | A2A (Agent-to-Agent)        | MCP (Model Context Protocol)         |
+  | Server Type       | A2AStarletteApplication     | FastMCP                              |
+  | Tool Registration | Wrapped in ADK agent        | @mcp.tool() decorator                |
+  | Tool Functions    | Synchronous def             | Asynchronous async def               |
+  | Endpoint          | Base URL                    | Base URL + /mcp                      |
+  | Startup           | uvicorn.run(server.build()) | mcp.run(transport='streamable-http') |
+  | Lines of Code     | 810 lines                   | 642 lines (-21%)                     |
+
+  ---
+  ✅ What This Fixes:
+
+  1. "Method not found" error (-32601) - Now uses correct MCP protocol
+  2. MCPToolset compatibility - Can now discover and invoke tools
+  3. Standardized architecture - Both backends use FastMCP
+  4. Simplified dependencies - Removed heavy ADK/A2A dependencies
+  5. Production streaming - MCP-based agents will now stream text responses
+
+  ---
+  🚀 Next Steps for Testing:
+
+  Local Testing:
+  cd mcp_server/recruitment_backend
+
+  # Install new dependencies
+  pip install -r requirements.txt
+
+  # Set environment variables
+  export GITHUB_TOKEN="your-token"
+  export HUNTER_API_KEY="your-key"
+
+  # Run server
+  python server.py
+
+  Expected Output:
+  ============================================================
+  🚀 Recruitment Backend MCP Server Starting...
+  ============================================================
+  📍 Server: http://0.0.0.0:8100
+  🔧 Transport: streamable-http
+  📦 Tools Registered:
+     - search_candidates_tool
+     - scrape_github_profiles_tool
+     ...
+  [INFO] MCP endpoint will be available at: http://0.0.0.0:8100/mcp
+
+  Test MCP Endpoint:
+  curl http://localhost:8100/mcp
+  # Should return MCP protocol response (not 404 or "Method not found")
+
+  ---
+  📝 Important Notes:
+
+  1. NO FILES DELETED - All original files preserved
+  2. NO GIT COMMITS - All changes are uncommitted as requested
+  3. AUTO /mcp APPENDING - Agent automatically adds /mcp to URLs
+  4. BACKWARD COMPATIBLE - If URL already has /mcp, it won't be duplicated
+
+  ---
+  🎯 Production Deployment Checklist:
+
+  When you're ready to deploy:
+
+  - Test locally with python server.py
+  - Build Docker image
+  - Push to GCR
+  - Deploy to Cloud Run
+  - Update RECRUITMENT_MCP_SERVER_URL env var (can use with or without /mcp)
+  - Redeploy Agent Engine
+  - Test: "Find senior engineers on GitHub"
+  - Verify no more "Method not found" errors ✅
+
+  ---
+  The migration is complete and ready for testing! The recruitment backend is now using FastMCP just like the staffing backend, which should fix the        
+  "Method not found" error and enable proper MCP tool streaming.

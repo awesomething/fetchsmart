@@ -149,17 +149,29 @@ recruitment_mcp_url = os.getenv("RECRUITMENT_MCP_SERVER_URL") or os.getenv("MCP_
 recruitment_mcp_toolset = None
 
 if recruitment_mcp_url:
+    # Ensure /mcp endpoint path is included (migrated from A2A to FastMCP)
+    if not recruitment_mcp_url.endswith('/mcp'):
+        recruitment_mcp_url = f"{recruitment_mcp_url.rstrip('/')}/mcp"
+
     print(f"[INFO] Attempting to connect to recruitment MCP backend: {recruitment_mcp_url}")
     try:
         # Use MCP server via HTTP (production)
-        # Note: Recruitment backend uses A2A protocol but exposes MCP tools
-        # Use base URL (no /mcp path) as per deployment docs
+        # Note: Recruitment backend now uses FastMCP (migrated from A2A)
+        # Use /mcp endpoint path (required for FastMCP compatibility)
+        # IMPORTANT: Include ALL email lookup tools from MCP server
         recruitment_mcp_toolset = MCPToolset(
             connection_params=StreamableHTTPConnectionParams(url=recruitment_mcp_url),
-            tool_filter=["search_candidates_tool"]
+            tool_filter=[
+                "search_candidates_tool",
+                "find_candidate_emails_tool",
+                "find_emails_by_github_usernames_tool"
+            ]
         )
         print(f"[OK] ✅ MCP recruitment backend configured successfully: {recruitment_mcp_url}")
-        print(f"[OK] ✅ search_candidates_tool will be available via MCP")
+        print(f"[OK] ✅ MCP tools available:")
+        print(f"[OK]    - search_candidates_tool")
+        print(f"[OK]    - find_candidate_emails_tool")
+        print(f"[OK]    - find_emails_by_github_usernames_tool")
     except Exception as e:
         import traceback
         print(f"[ERROR] ❌ Failed to initialize MCP recruitment backend: {e}")
@@ -571,17 +583,25 @@ def find_emails_by_github_usernames_tool(github_usernames: str) -> str:
     return json.dumps(response, indent=2)
 
 # Build tools list
-tools_list = [find_candidate_emails_tool, find_emails_by_github_usernames_tool]
-
-# Add search_candidates_tool: use MCP if available, otherwise local function
+# CRITICAL: When MCP server is available, use ALL tools from MCP server
+# (they have access to the github_profiles_100.json dataset)
+# When MCP is not available, use local tools
 if recruitment_mcp_toolset:
-    # Use MCP toolset (exposes search_candidates_tool from MCP server)
-    tools_list.append(recruitment_mcp_toolset)
-    print("[INFO] Using MCP toolset for search_candidates_tool (production)")
+    # Use MCP toolset (exposes ALL tools from MCP server)
+    # The MCP server has access to github_profiles_100.json and HUNTER_API_KEY
+    tools_list = [recruitment_mcp_toolset]
+    print("[INFO] Using MCP toolset for ALL recruitment tools (production)")
+    print("[INFO] MCP server has access to:")
+    print("[INFO]   - github_profiles_100.json (100 real GitHub profiles)")
+    print("[INFO]   - HUNTER_API_KEY for email lookup")
 else:
-    # Use local function (local development)
-    tools_list.append(search_candidates_tool)
-    print("[INFO] Using local search_candidates_tool (local development)")
+    # Use local functions (local development)
+    tools_list = [
+        search_candidates_tool,
+        find_candidate_emails_tool,
+        find_emails_by_github_usernames_tool
+    ]
+    print("[INFO] Using local tools (local development)")
 
 print("[INFO] ========================================")
 print("[INFO] Recruiter Orchestrator Agent Setup")
@@ -589,10 +609,12 @@ print("[INFO] ========================================")
 print("[INFO] Tools registered:")
 if recruitment_mcp_toolset:
     print("  - search_candidates_tool: [OK] (MCP server)")
+    print("  - find_candidate_emails_tool: [OK] (MCP server)")
+    print("  - find_emails_by_github_usernames_tool: [OK] (MCP server)")
 else:
     print("  - search_candidates_tool: [OK] (local)")
-print("  - find_candidate_emails_tool: [OK] (local Hunter API)")
-print("  - find_emails_by_github_usernames_tool: [OK] (local Hunter API)")
+    print("  - find_candidate_emails_tool: [OK] (local Hunter API)")
+    print("  - find_emails_by_github_usernames_tool: [OK] (local Hunter API)")
 print(f"[INFO] Total tools in list: {len(tools_list)}")
 print("[INFO] ========================================")
 

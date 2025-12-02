@@ -50,7 +50,7 @@ if ($test -eq "y" -or $test -eq "Y") {
     
     Write-Host "🧪 Starting local container for testing..." -ForegroundColor Yellow
     Write-Host "   Access at: http://localhost:$testPort"
-    Write-Host "   Agent Card: http://localhost:$testPort/.well-known/agent-card.json"
+    Write-Host "   MCP Endpoint: http://localhost:$testPort/mcp"
     Write-Host "   Press Ctrl+C to stop and continue deployment"
     Write-Host ""
     
@@ -75,14 +75,20 @@ if ($test -eq "y" -or $test -eq "Y") {
             if ($containerRunning) {
                 Write-Host "✅ Container is running" -ForegroundColor Green
                 
-                # Test endpoint
-                Write-Host "Testing endpoint..."
+                # Test MCP endpoint (expects 406 or JSON-RPC error - this is normal for MCP)
+                Write-Host "Testing MCP endpoint..."
                 try {
-                    $response = Invoke-WebRequest -Uri "http://localhost:$testPort/.well-known/agent-card.json" -UseBasicParsing -TimeoutSec 5
-                    Write-Host "✅ Endpoint responding (Status: $($response.StatusCode))" -ForegroundColor Green
+                    $response = Invoke-WebRequest -Uri "http://localhost:$testPort/mcp" -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+                    Write-Host "✅ MCP endpoint responding (Status: $($response.StatusCode))" -ForegroundColor Green
                     Write-Host $response.Content.Substring(0, [Math]::Min(200, $response.Content.Length))
                 } catch {
-                    Write-Host "⚠️  Endpoint test failed: $($_.Exception.Message)" -ForegroundColor Yellow
+                    # 406 or JSON-RPC errors are expected for MCP without proper headers
+                    if ($_.Exception.Response.StatusCode -eq 406 -or $_.Exception.Message -like "*406*" -or $_.Exception.Message -like "*JSON-RPC*") {
+                        Write-Host "✅ MCP endpoint is accessible (406/JSON-RPC response is expected)" -ForegroundColor Green
+                        Write-Host "   This is normal - MCP requires proper headers from MCPToolset" -ForegroundColor Gray
+                    } else {
+                        Write-Host "⚠️  Endpoint test failed: $($_.Exception.Message)" -ForegroundColor Yellow
+                    }
                 }
             } else {
                 Write-Host "⚠️  Container stopped unexpectedly" -ForegroundColor Yellow
@@ -169,10 +175,10 @@ $SERVICE_URL = gcloud run services describe $SERVICE_NAME `
 
 Write-Host "   $SERVICE_URL"
 Write-Host ""
-Write-Host "🔗 A2A Agent Card:" -ForegroundColor Cyan
-Write-Host "   $SERVICE_URL/.well-known/agent-card.json"
+Write-Host "🔗 MCP Endpoint:" -ForegroundColor Cyan
+Write-Host "   $SERVICE_URL/mcp"
 Write-Host ""
 Write-Host "💡 Set this in your ADK agent environment:" -ForegroundColor Yellow
-Write-Host "   RECRUITMENT_MCP_SERVER_URL=$SERVICE_URL"
+Write-Host "   RECRUITMENT_MCP_SERVER_URL=$SERVICE_URL/mcp"
 Write-Host ""
 
