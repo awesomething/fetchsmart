@@ -95,6 +95,16 @@ export function WalkthroughOverlay({
   const getTooltipStyle = (): React.CSSProperties => {
     const offset = 20;
     const arrowSize = 40;
+    const isMobile = window.innerWidth < 640;
+
+    // On mobile, center the tooltip horizontally and position it safely
+    if (isMobile) {
+      return {
+        top: Math.max(offset, targetPosition.bottom + offset + arrowSize),
+        left: '50%',
+        transform: 'translateX(-50%)',
+      };
+    }
 
     switch (step.position) {
       case "bottom":
@@ -222,10 +232,10 @@ export function WalkthroughOverlay({
 
       {/* Tooltip with instructions */}
       <div
-        className="fixed z-[302] pointer-events-auto"
+        className="fixed z-[302] pointer-events-auto px-4"
         style={getTooltipStyle()}
       >
-        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl shadow-2xl p-6 max-w-sm border-2 border-emerald-400">
+        <div className="bg-gradient-to-br from-emerald-600 to-emerald-700 rounded-xl shadow-2xl p-4 sm:p-6 w-[calc(100vw-2rem)] sm:w-auto max-w-sm border-2 border-emerald-400">
           {/* Close button */}
           <button
             onClick={onSkip}
