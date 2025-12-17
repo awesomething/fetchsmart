@@ -195,7 +195,7 @@ export function ChatContainer(): React.JSX.Element {
               onClick={() => setIsFeedbackOpen(true)}
               className="bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors duration-200 text-xs sm:text-sm whitespace-nowrap"
             >
-              Feedback
+              Verify Candidate
             </button>
             {/* Mobile close button */}
             <button
@@ -316,9 +316,9 @@ export function ChatContainer(): React.JSX.Element {
             {/* Modal Content */}
             <div className="p-6">
               <iframe
-                src="https://videobook-u42797.vm.elestio.app/form/3f84eff0-3703-4ac9-a703-84668c808179"
+                src="https://workflow.videobook.ai/form/search-user"
                 className="w-full h-[70vh] border-0"
-                title="Feedback Form"
+                title="Verify Candidate"
               />
             </div>
           </div>
