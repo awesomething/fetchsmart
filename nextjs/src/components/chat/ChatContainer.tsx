@@ -195,7 +195,7 @@ export function ChatContainer(): React.JSX.Element {
               onClick={() => setIsFeedbackOpen(true)}
               className="bg-yellow-400 hover:bg-yellow-300 text-blue-900 font-bold py-2 px-3 sm:px-4 rounded-lg transition-colors duration-200 text-xs sm:text-sm whitespace-nowrap"
             >
-              Feedback
+              Verify Candidate
             </button>
             {/* Mobile close button */}
             <button
